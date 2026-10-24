@@ -316,6 +316,7 @@ window.onSpeech = function (text, final) {
 };
 window.onMicLevel = function (db) { S.mic = Math.max(S.mic, clamp((db + 2) / 12, 0, 1)); };
 window.onMicError = function (msg) { S.micOn = false; say(msg, 3500); };
+window.onMicInfo = function (msg) { say(msg, 3000); };
 
 function stopMicNow() { S.micOn = false; if (window.Android) Android.stopMic(); }
 function toggleMic() {

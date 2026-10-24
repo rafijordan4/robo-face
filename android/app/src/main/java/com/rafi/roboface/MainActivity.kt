@@ -75,6 +75,10 @@ class MainActivity : Activity() {
                     js("onMicError('Izinkan mic dulu, lalu klik dua kali lagi')")
                     return@runOnUiThread
                 }
+                if (!SpeechRecognizer.isRecognitionAvailable(this@MainActivity)) {
+                    js("onMicError('Layanan suara Google tidak ada di HP ini')")
+                    return@runOnUiThread
+                }
                 micOn = true
                 muteBeep(true)
                 listen()
@@ -154,8 +158,16 @@ class MainActivity : Activity() {
                     recognizer?.cancel()
                     restartSoon(900)
                 }
-                SpeechRecognizer.ERROR_CLIENT -> restartSoon(900)
-                else -> restartSoon(400) // no match / timeout: dengarkan lagi
+                SpeechRecognizer.ERROR_CLIENT -> {
+                    js("onMicInfo('Mic error kode $error')")
+                    restartSoon(900)
+                }
+                else -> {
+                    if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        js("onMicInfo('Mic error kode $error')")
+                    }
+                    restartSoon(400)
+                }
             }
         }
     }
