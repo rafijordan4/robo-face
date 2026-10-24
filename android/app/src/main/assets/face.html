@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Robo Face</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0f1a;overflow:hidden;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#bubble{position:fixed;left:50%;bottom:5%;transform:translateX(-50%);max-width:70%;
+  background:#fff;color:#1a1a2e;padding:10px 20px;border-radius:20px;font-weight:700;font-size:20px;
+  text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 6px 24px #0008}
+#notif{position:fixed;right:3%;top:7%;width:34%;max-width:420px;background:#1b2236;color:#fff;
+  border:1px solid #33405f;border-radius:18px;padding:14px 16px;opacity:0;transform:translateY(-14px) scale(.97);
+  transition:opacity .3s,transform .3s;pointer-events:none;box-shadow:0 10px 30px #000a}
+#notif .app{font-size:12px;color:#8fa0c8;letter-spacing:.04em;text-transform:uppercase}
+#notif .title{font-size:19px;font-weight:700;margin-top:2px;word-break:break-word}
+#notif .body{font-size:15px;color:#d5dcf0;margin-top:4px;word-break:break-word}
+#notif img{display:none;width:100%;max-height:42vh;object-fit:contain;border-radius:12px;margin-top:10px;background:#fff}
+#cfg{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:10}
+#cfg .box{background:#1b2236;color:#fff;border-radius:20px;padding:22px;width:min(440px,86vw)}
+#cfg h2{margin:0 0 4px;font-size:20px}
+#cfg p{margin:0 0 12px;color:#9fb0d8;font-size:13px;line-height:1.4}
+#cfg input{width:100%;padding:12px 14px;margin:5px 0;border-radius:12px;border:1px solid #3a4870;background:#0f1424;color:#fff;font-size:17px}
+#cfg .row{display:flex;gap:10px;margin-top:12px}
+#cfg button{flex:1;padding:12px;border:0;border-radius:12px;font-size:16px;font-weight:700}
+#cfg .ok{background:#ffc857;color:#1a1a2e}
+#cfg .no{background:#2a3350;color:#fff}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bubble"></div>
+<div id="notif"><div class="app" id="nApp"></div><div class="title" id="nTitle"></div><div class="body" id="nBody"></div><img id="nImg" alt=""></div>
+<div id="cfg"><div class="box">
+  <h2>Sambung ke PC</h2>
+  <p>Isi IP PC dan PIN yang tampil di jendela <b>server.py</b>. HP dan PC harus satu WiFi / hotspot yang sama.</p>
+  <input id="fHost" inputmode="decimal" placeholder="IP PC, contoh 192.168.43.10" autocomplete="off">
+  <input id="fPin" inputmode="numeric" placeholder="PIN (4 angka)" autocomplete="off">
+  <div class="row"><button class="no" id="bNo">Batal</button><button class="ok" id="bOk">Simpan</button></div>
+</div></div>
+
+<script>
+"use strict";
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const $ = (id) => document.getElementById(id);
+let W = 0, H = 0, dpr = 1;
+function resize() {
+  dpr = window.devicePixelRatio || 1; W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+}
+addEventListener("resize", resize); resize();
+
+// ---------------- state ----------------
+const S = { connected: false, micOn: false, sleeping: false, headset: false, pwd: false, mic: 0 };
+let tx = 0.5, ty = 0.5;               // posisi mouse PC (0..1)
+let lx = 0, ly = 0;                   // arah pandang saat ini
+let eyeOpen = 1, blinkStart = -10, nextBlink = 2;
+let mouthOpen = 0, happy = 0, pulse = 0, sur = 0;
+let pawAmt = 0, headAmt = 0, sleepAmt = 0;
+let lookNotifUntil = 0;
+
+// ---------------- util gambar ----------------
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (p) => 1 - Math.pow(1 - p, 3);
+
+function drawEye(x, y, r, open) {
+  if (open < 0.12) { // mata tertutup: garis melengkung
+    ctx.strokeStyle = "#3a2a1a"; ctx.lineWidth = r * 0.16; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(x, y - r * 0.15, r * 0.62, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    return;
+  }
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(x, y, r, r * open, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.clip();
+  const px = x + lx * r * 0.42, py = y + ly * r * 0.42;
+  ctx.fillStyle = "#1c1530";
+  ctx.beginPath(); ctx.arc(px, py, r * 0.54, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(px - r * 0.17, py - r * 0.2, r * 0.17, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(px + r * 0.16, py + r * 0.18, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = "#3a2a1a"; ctx.lineWidth = r * 0.07;
+  ctx.beginPath(); ctx.ellipse(x, y, r, r * open, 0, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawPaw(x, y, er) {
+  ctx.fillStyle = "#ffd6a5"; ctx.strokeStyle = "#c98b5a"; ctx.lineWidth = er * 0.07;
+  ctx.beginPath(); ctx.ellipse(x, y, er * 1.1, er * 0.95, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.lineCap = "round";
+  for (let k = -1; k <= 1; k++) {
+    ctx.beginPath(); ctx.moveTo(x + k * er * 0.38, y - er * 0.62); ctx.lineTo(x + k * er * 0.38, y - er * 0.18); ctx.stroke();
+  }
+}
+
+// ---------------- loop utama ----------------
+function frame(ms) {
+  const t = ms / 1000;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#0b0f1a"; ctx.fillRect(0, 0, W, H);
+
+  // arah pandang
+  let gx, gy;
+  if (t < lookNotifUntil) { gx = 1; gy = -0.7; }
+  else if (S.connected) { gx = (tx - 0.5) * 2.2; gy = (ty - 0.5) * 2.2; }
+  else { gx = Math.sin(t * 0.7) * 0.7; gy = Math.sin(t * 0.45) * 0.35; }
+  gx = clamp(gx, -1, 1); gy = clamp(gy, -1, 1);
+  lx += (gx - lx) * 0.2; ly += (gy - ly) * 0.2;
+
+  // kedip + kelopak
+  if (t > nextBlink) { blinkStart = t; nextBlink = t + 2 + Math.random() * 3.5; }
+  const bp = (t - blinkStart) / 0.18;
+  const blink = bp >= 0 && bp <= 1 ? Math.sin(bp * Math.PI) : 0;
+  const eyeTarget = (S.sleeping || S.pwd) ? 0 : 1;
+  eyeOpen += (eyeTarget - eyeOpen) * 0.2;
+  pulse = Math.max(0, pulse - 0.02);
+  happy = Math.max(0, happy - 0.012);
+  sur += (Math.max(S.micOn ? 0.4 : 0, pulse) - sur) * 0.2;
+  const open = eyeOpen * (1 - blink * 0.96) * (1 + sur * 0.2);
+
+  S.mic *= 0.92;
+  mouthOpen += ((S.micOn ? S.mic * 0.9 : 0) + (happy > 0 ? 0.35 : 0) - mouthOpen) * 0.35;
+  pawAmt += ((S.pwd && !S.sleeping ? 1 : 0) - pawAmt) * 0.14;
+  headAmt += ((S.headset ? 1 : 0) - headAmt) * 0.12;
+  sleepAmt += ((S.sleeping ? 1 : 0) - sleepAmt) * 0.08;
+
+  // geometri
+  const fh = H * 0.78, fw = Math.min(W * 0.62, fh * 1.45);
+  const cx = W / 2, rx = fw / 2, ry = fh / 2;
+  const bob = S.headset ? Math.sin(t * 7) * fh * 0.012 : (S.sleeping ? Math.sin(t * 1.5) * fh * 0.01 : 0);
+  const cy = H * 0.5 + bob;
+  const er = Math.min(rx * 0.26, ry * 0.36);
+  const ex = rx * 0.42, ey = cy - ry * 0.1;
+
+  // cincin mic
+  if (S.micOn) {
+    const k = 1.06 + 0.02 * Math.sin(t * 5) + S.mic * 0.05;
+    ctx.save();
+    ctx.strokeStyle = "rgba(0,229,255,.85)"; ctx.lineWidth = 6;
+    ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 24;
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx * k, ry * k, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // muka
+  const g = ctx.createRadialGradient(cx - rx * 0.2, cy - ry * 0.35, ry * 0.1, cx, cy, ry * 1.15);
+  g.addColorStop(0, "#ffe9a8"); g.addColorStop(1, "#ffbe55");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+
+  // pipi
+  ctx.fillStyle = "rgba(255,110,140,.45)";
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.ellipse(cx + s * rx * 0.6, cy + ry * 0.25, rx * 0.09, ry * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // alis
+  ctx.strokeStyle = "#8a5a2b"; ctx.lineWidth = er * 0.11; ctx.lineCap = "round";
+  const brow = ey - er * 1.3 - sur * er * 0.35 + (eyeTarget === 0 ? er * 0.12 : 0);
+  for (const s of [-1, 1]) {
+    const x = cx + s * ex;
+    ctx.beginPath(); ctx.moveTo(x - er * 0.55, brow + er * 0.08);
+    ctx.quadraticCurveTo(x, brow - er * 0.2, x + er * 0.55, brow + er * 0.08); ctx.stroke();
+  }
+
+  // mata
+  drawEye(cx - ex, ey, er, open);
+  drawEye(cx + ex, ey, er, open);
+
+  // mulut
+  const my = cy + ry * 0.42, mw = rx * 0.2;
+  const oh = mouthOpen * ry * 0.28;
+  if (oh > 3) {
+    ctx.fillStyle = "#5b1d2f";
+    ctx.beginPath(); ctx.ellipse(cx, my + oh * 0.3, mw * (0.7 + mouthOpen * 0.3), oh, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ff7a93";
+    ctx.beginPath(); ctx.ellipse(cx, my + oh * 0.75, mw * 0.4, oh * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    const w = S.sleeping ? mw * 0.5 : mw * (1 + happy * 0.3);
+    ctx.strokeStyle = "#4a2b1a"; ctx.lineWidth = er * 0.14; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(cx, my - w * 0.5, w, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  }
+
+  // tangan nutup mata (password)
+  if (pawAmt > 0.02) {
+    const p = ease(clamp(pawAmt, 0, 1));
+    for (const s of [-1, 1]) {
+      drawPaw(cx + s * ex, (cy + ry * 1.15) + (ey - (cy + ry * 1.15)) * p, er);
+    }
+  }
+
+  // headset
+  if (headAmt > 0.02) {
+    ctx.save(); ctx.globalAlpha = clamp(headAmt, 0, 1);
+    ctx.strokeStyle = "#2d3142"; ctx.lineWidth = fh * 0.045; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx * 1.02, ry * 1.03, 0, Math.PI * 1.03, Math.PI * 1.97); ctx.stroke();
+    const sc = 1 + 0.04 * Math.sin(t * 10), cw = fw * 0.075 * sc, ch = fh * 0.3 * sc;
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = "#ef476f"; rr(cx + s * rx * 1.0 - cw / 2, cy - ch / 2, cw, ch, cw * 0.45); ctx.fill();
+      ctx.fillStyle = "#b8294f"; rr(cx + s * rx * 1.0 - cw * 0.3 - s * cw * 0.12, cy - ch * 0.36, cw * 0.6, ch * 0.72, cw * 0.3); ctx.fill();
+    }
+    ctx.fillStyle = "#fff"; ctx.font = "bold " + Math.round(fh * 0.07) + "px system-ui";
+    for (let i = 0; i < 2; i++) {
+      const ph = (t * 0.6 + i * 0.5) % 1;
+      ctx.globalAlpha = clamp(headAmt, 0, 1) * (1 - ph);
+      ctx.fillText(i ? "♫" : "♪", cx + rx * 1.1 + ph * fw * 0.05, cy - ry * 0.4 - ph * fh * 0.25);
+    }
+    ctx.restore();
+  }
+
+  // mode tidur
+  if (sleepAmt > 0.02) {
+    ctx.fillStyle = "rgba(5,8,20," + (0.55 * sleepAmt) + ")"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(200,220,255," + sleepAmt + ")";
+    for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.4 + i / 3) % 1;
+      ctx.globalAlpha = (1 - ph) * sleepAmt;
+      ctx.font = "bold " + Math.round(fh * 0.08 * (0.6 + ph)) + "px system-ui";
+      ctx.fillText("Z", cx + rx * 0.75 + ph * fw * 0.08, cy - ry * 0.25 - ph * fh * 0.4);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // status kecil
+  ctx.fillStyle = S.connected ? "#3ddc84" : "#ff5d5d";
+  ctx.beginPath(); ctx.arc(W - 22, 22, 7, 0, Math.PI * 2); ctx.fill();
+  if (S.micOn) {
+    ctx.fillStyle = "#00e5ff"; ctx.font = "bold 14px system-ui"; ctx.textAlign = "right";
+    ctx.fillText("MIC", W - 38, 27); ctx.textAlign = "left";
+  }
+  if (!S.connected && !S.sleeping) {
+    ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.font = "14px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("Belum tersambung. Tahan layar 1 detik untuk atur IP & PIN.", W / 2, H - 16); ctx.textAlign = "left";
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------------- bubble & notif ----------------
+let bubbleTimer = null;
+function say(text, ms) {
+  const b = $("bubble");
+  b.textContent = text; b.style.opacity = 1;
+  clearTimeout(bubbleTimer);
+  if ((ms || 2500) < 99999) bubbleTimer = setTimeout(() => { b.style.opacity = 0; }, ms || 2500);
+}
+function hideBubble() { clearTimeout(bubbleTimer); $("bubble").style.opacity = 0; }
+
+let notifTimer = null;
+function showNotif(m) {
+  if (S.sleeping) return;
+  $("nApp").textContent = m.app || "";
+  $("nTitle").textContent = m.title || "";
+  $("nBody").textContent = m.body || "";
+  const img = $("nImg");
+  if (m.image) { img.src = m.image; img.style.display = "block"; } else { img.removeAttribute("src"); img.style.display = "none"; }
+  const n = $("notif");
+  n.style.opacity = 1; n.style.transform = "none";
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => { n.style.opacity = 0; n.style.transform = "translateY(-14px) scale(.97)"; }, m.image ? 3000 : 4500);
+  pulse = 1; lookNotifUntil = performance.now() / 1000 + 1.6;
+}
+
+// ---------------- koneksi ke PC ----------------
+let ws = null, gen = 0, cfg = {};
+try { cfg = JSON.parse(localStorage.getItem("cfg") || "{}"); } catch (e) { cfg = {}; }
+
+function wsSend(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+function connect() {
+  gen++; const g = gen;
+  if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} }
+  S.connected = false;
+  if (!cfg.host) { openCfg(); return; }
+  try { ws = new WebSocket("ws://" + cfg.host + ":8765"); } catch (e) { setTimeout(() => { if (g === gen) connect(); }, 2500); return; }
+  ws.onopen = () => wsSend({ t: "hello", role: "phone", pin: cfg.pin || "" });
+  ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } handle(m); };
+  ws.onclose = () => { if (g !== gen) return; S.connected = false; S.headset = false; S.pwd = false; setTimeout(() => { if (g === gen) connect(); }, 2000); };
+}
+
+function handle(m) {
+  switch (m.t) {
+    case "hello_ok": S.connected = true; say("Tersambung ke PC!", 1800); happy = 1; break;
+    case "auth_fail": say("PIN salah", 3000); openCfg(); break;
+    case "mouse": tx = m.x; ty = m.y; break;
+    case "media": S.headset = !!m.playing; break;
+    case "password": S.pwd = !!m.active; break;
+    case "notif": showNotif(m); break;
+    case "cmd_result":
+      say(m.text || "", 2500);
+      if (m.ok) happy = 1;
+      break;
+  }
+}
+
+// ---------------- suara (dipanggil dari Android) ----------------
+window.onSpeech = function (text, final) {
+  say("“" + text + "”", final ? 2500 : 99999);
+  if (final) {
+    if (S.connected) wsSend({ t: "cmd", text });
+    else say("Belum tersambung ke PC", 2500);
+  }
+};
+window.onMicLevel = function (db) { S.mic = Math.max(S.mic, clamp((db + 2) / 12, 0, 1)); };
+window.onMicError = function (msg) { S.micOn = false; say(msg, 3500); };
+
+function stopMicNow() { S.micOn = false; if (window.Android) Android.stopMic(); }
+function toggleMic() {
+  if (S.micOn) { stopMicNow(); say("Mic mati", 1500); return; }
+  if (!window.Android) { say("Mic cuma jalan di APK", 2000); return; }
+  S.micOn = true; Android.startMic(); say("Mendengarkan…", 99999);
+}
+
+function sleepNow() {
+  if (S.micOn) stopMicNow();
+  S.sleeping = true; hideBubble();
+  $("notif").style.opacity = 0;
+}
+function wakeNow() { S.sleeping = false; happy = 1; say("Halo, aku bangun!", 1800); }
+
+// ---------------- tap ----------------
+let taps = 0, tapTimer = null, pressTimer = null, cfgOpen = false;
+function handleTaps() {
+  const n = taps; taps = 0;
+  if (S.sleeping) { wakeNow(); return; }
+  if (n === 2) toggleMic();
+  else if (n >= 4) sleepNow();
+  else if (n === 1) { happy = 1; pulse = 0.6; }
+}
+document.addEventListener("pointerdown", (e) => {
+  if (cfgOpen || e.target.closest("#cfg")) return;
+  pressTimer = setTimeout(() => { pressTimer = null; taps = 0; clearTimeout(tapTimer); openCfg(); }, 900);
+});
+document.addEventListener("pointerup", () => {
+  if (cfgOpen || pressTimer === null) return;
+  clearTimeout(pressTimer); pressTimer = null;
+  taps++; clearTimeout(tapTimer); tapTimer = setTimeout(handleTaps, 380);
+});
+document.addEventListener("pointercancel", () => { clearTimeout(pressTimer); pressTimer = null; });
+
+// ---------------- dialog pengaturan ----------------
+function openCfg() {
+  cfgOpen = true; $("fHost").value = cfg.host || ""; $("fPin").value = cfg.pin || ""; $("cfg").style.display = "flex";
+}
+function closeCfg() { cfgOpen = false; $("cfg").style.display = "none"; }
+$("bNo").onclick = closeCfg;
+$("bOk").onclick = () => {
+  cfg = { host: $("fHost").value.trim(), pin: $("fPin").value.trim() };
+  try { localStorage.setItem("cfg", JSON.stringify(cfg)); } catch (e) {}
+  closeCfg(); connect();
+};
+
+connect();
+</script>
+</body>
+</html>
