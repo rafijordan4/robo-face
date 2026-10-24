@@ -10,7 +10,7 @@ html,body{margin:0;height:100%;background:#0b0f1a;overflow:hidden;touch-action:m
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 input{-webkit-user-select:text;user-select:text}
-canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
 #bubble{position:fixed;left:50%;bottom:5%;transform:translateX(-50%);max-width:60%;
   background:#fff;color:#1a1a2e;padding:10px 20px;border-radius:20px;font-weight:700;font-size:19px;
   text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 6px 24px #0008;z-index:4}
@@ -22,15 +22,24 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #notif .body{font-size:15px;color:#d5dcf0;margin-top:4px;word-break:break-word}
 #notif img{display:none;width:100%;max-height:42vh;object-fit:contain;border-radius:12px;margin-top:10px;background:#fff}
 
-/* layar PC (kiri bawah) */
-#scr{position:fixed;left:10px;bottom:10px;background:#000;border:2px solid #33405f;border-radius:12px;
-  overflow:hidden;box-shadow:0 8px 24px #000a;display:none;z-index:5;width:min(22vw,calc(78vh * 1.7778))}
-#scr .bar{display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b2236;color:#cfd8f5;font-size:12px}
-#scr .bar b{flex:1;font-weight:600}
-#scr button,#panel button.ib{border:0;background:#2a3350;color:#fff;border-radius:7px;min-width:28px;height:24px;font-size:15px;line-height:1;padding:0 6px}
-#scr img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}
-#scrOpen{position:fixed;left:10px;bottom:10px;display:none;z-index:5;border:1px solid #33405f;background:#1b2236;
-  color:#fff;border-radius:12px;padding:8px 12px;font-size:14px}
+/* dock kiri bawah: layar PC + mouse HP */
+#dock{position:fixed;left:10px;bottom:10px;display:none;gap:8px;align-items:stretch;z-index:5}
+#scr{background:#000;border:2px solid #33405f;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px #000a;display:none;align-self:flex-end;width:min(22vw,calc(70vh * 1.7778))}
+#scr .bar,#pad .bar{display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b2236;color:#cfd8f5;font-size:12px}
+#scr .bar b,#pad .bar b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden}
+.lg{font-size:10px;font-weight:600;color:#9fb0d8;margin-left:4px;white-space:nowrap}
+.lg i{font-style:normal}
+#scr button,#pad .bar button{border:0;background:#2a3350;color:#fff;border-radius:7px;min-width:28px;height:24px;font-size:14px;line-height:1;padding:0 6px}
+#panel button.ib{border:0;background:#2a3350;color:#fff;border-radius:7px;min-width:28px;height:24px;font-size:15px;line-height:1;padding:0 6px}
+#scr canvas{display:block;width:100%;height:auto;background:#000}
+#pad{width:min(26vw,230px);min-height:150px;display:none;flex-direction:column;background:#10162a;border:2px solid #33405f;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px #000a}
+#padSurf{flex:1;touch-action:none;display:flex;align-items:center;justify-content:center;color:#6f7fa8;font-size:11px;text-align:center;padding:6px;
+  background:radial-gradient(circle at 50% 50%,#1a2340 0,#10162a 70%)}
+#padBtns{display:grid;grid-template-columns:1fr 1fr 34px 34px;gap:4px;padding:4px;background:#1b2236}
+#padBtns button{height:36px;border:0;border-radius:9px;background:#2a3350;color:#fff;font-size:13px;font-weight:700;touch-action:none}
+#padBtns button.on{background:#ffc857;color:#1a1a2e}
+#openers{position:fixed;left:10px;bottom:10px;display:none;gap:6px;z-index:5}
+#openers button{border:1px solid #33405f;background:#1b2236;color:#fff;border-radius:12px;padding:8px 12px;font-size:14px}
 
 /* panel ketik (kanan) */
 #panel{position:fixed;top:0;right:0;bottom:0;width:36vw;background:#10162a;border-left:1px solid #2a3350;
@@ -70,11 +79,18 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="bubble"></div>
 <div id="notif"><div class="app" id="nApp"></div><div class="title" id="nTitle"></div><div class="body" id="nBody"></div><img id="nImg" alt=""></div>
 
-<div id="scr">
-  <div class="bar"><b>Layar PC</b><button id="sMin" title="Kecilkan">&minus;</button><button id="sPlus" title="Besarkan">+</button><button id="sX" title="Tutup">&times;</button></div>
-  <img id="scrImg" alt="">
+<div id="dock">
+  <div id="scr">
+    <div class="bar"><b>Layar PC <span class="lg"><i style="color:#ff3030">&#9679;</i>PC <i style="color:#00e5ff">&#9679;</i>HP <i style="color:#ffd60a">&#9679;</i>AI</span></b><button id="sFps" title="Kecepatan">30fps</button><button id="sPadT" title="Mouse HP">&#128433;</button><button id="sMin" title="Kecilkan">&minus;</button><button id="sPlus" title="Besarkan">+</button><button id="sX" title="Tutup">&times;</button></div>
+    <canvas id="scrCv" width="640" height="360"></canvas>
+  </div>
+  <div id="pad">
+    <div class="bar"><b>Mouse HP</b><button id="padScr" title="Tampilkan layar PC">&#128421;</button><button id="padX" title="Tutup">&times;</button></div>
+    <div id="padSurf">geser = gerak<br>ketuk = klik kiri<br>2 jari = scroll<br>ketuk 2 jari = klik kanan</div>
+    <div id="padBtns"><button id="bL">Kiri</button><button id="bR">Kanan</button><button id="bU">&#9650;</button><button id="bD">&#9660;</button></div>
+  </div>
 </div>
-<button id="scrOpen">&#128421; Layar PC</button>
+<div id="openers"><button id="oScr">&#128421; Layar PC</button><button id="oPad">&#128433; Mouse HP</button></div>
 
 <button id="tabbtn" title="Panel ketik">&#9664;</button>
 <div id="panel">
@@ -326,32 +342,113 @@ let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem("cfg") || "{}"); } catch (e) { cfg = {}; }
 function saveCfg() { try { localStorage.setItem("cfg", JSON.stringify(cfg)); } catch (e) {} }
 
-// ---------------- layar PC ----------------
+// ---------------- layar PC + mouse HP ----------------
 const SIZES = [{ vw: 22, w: 480 }, { vw: 34, w: 640 }, { vw: 50, w: 800 }, { vw: 66, w: 960 }];
 let scrSize = clamp(parseInt(cfg.scrSize, 10) || 0, 0, SIZES.length - 1);
 let scrVisible = cfg.scrVisible !== false;
-let lastFrameUrl = null;
+let padVisible = cfg.padVisible !== false;
+let fps = cfg.fps === 60 ? 60 : 30;
 
 function applyScreen() {
-  const box = $("scr"), open = $("scrOpen");
-  const want = scrVisible && !S.sleeping;
-  box.style.display = want ? "block" : "none";
-  open.style.display = (!scrVisible && !S.sleeping) ? "block" : "none";
-  box.style.width = "min(" + SIZES[scrSize].vw + "vw, calc(78vh * 1.7778))";
-  wsSend({ t: "screen", on: want, w: SIZES[scrSize].w });
-  cfg.scrSize = scrSize; cfg.scrVisible = scrVisible; saveCfg();
+  const awake = !S.sleeping, showScr = scrVisible && awake, showPad = padVisible && awake;
+  $("dock").style.display = (showScr || showPad) ? "flex" : "none";
+  $("scr").style.display = showScr ? "block" : "none";
+  $("pad").style.display = showPad ? "flex" : "none";
+  $("openers").style.display = (awake && !scrVisible && !padVisible) ? "flex" : "none";
+  $("padScr").style.display = scrVisible ? "none" : "inline-block";
+  $("scr").style.width = "min(" + SIZES[scrSize].vw + "vw, calc(70vh * 1.7778))";
+  $("sFps").textContent = fps + "fps";
+  wsSend({ t: "screen", on: showScr, w: SIZES[scrSize].w, fps });
+  cfg.scrSize = scrSize; cfg.scrVisible = scrVisible; cfg.padVisible = padVisible; cfg.fps = fps; saveCfg();
 }
 $("sPlus").onclick = () => { scrSize = Math.min(SIZES.length - 1, scrSize + 1); applyScreen(); };
 $("sMin").onclick = () => { scrSize = Math.max(0, scrSize - 1); applyScreen(); };
 $("sX").onclick = () => { scrVisible = false; applyScreen(); };
-$("scrOpen").onclick = () => { scrVisible = true; applyScreen(); };
+$("sFps").onclick = () => { fps = fps === 30 ? 60 : 30; applyScreen(); };
+$("sPadT").onclick = () => { padVisible = !padVisible; applyScreen(); };
+$("padX").onclick = () => { padVisible = false; applyScreen(); };
+$("padScr").onclick = () => { scrVisible = true; applyScreen(); };
+$("oScr").onclick = () => { scrVisible = true; applyScreen(); };
+$("oPad").onclick = () => { padVisible = true; applyScreen(); };
 
-function showFrame(blob) {
-  const u = URL.createObjectURL(blob), prev = lastFrameUrl, img = $("scrImg");
-  lastFrameUrl = u;
-  img.onload = () => { if (prev) URL.revokeObjectURL(prev); };
-  img.src = u;
+// Frame terbaru saja: decode di thread terpisah (createImageBitmap), gambar ke canvas.
+let pendingBlob = null, decoding = false;
+function showFrame(blob) { pendingBlob = blob; if (!decoding) pumpFrames(); }
+async function pumpFrames() {
+  decoding = true;
+  while (pendingBlob) {
+    const b = pendingBlob; pendingBlob = null;
+    try {
+      const bmp = await createImageBitmap(b);
+      const c = $("scrCv");
+      if (c.width !== bmp.width || c.height !== bmp.height) { c.width = bmp.width; c.height = bmp.height; }
+      c.getContext("2d").drawImage(bmp, 0, 0);
+      if (bmp.close) bmp.close();
+    } catch (e) {}
+  }
+  decoding = false;
 }
+
+// ---- touchpad ----
+function pm(o) { if (S.connected) wsSend(Object.assign({ t: "pm" }, o)); }
+const surf = $("padSurf");
+const ptrs = new Map();
+let acc = { x: 0, y: 0 }, flushT = null, tap = null, wheelAcc = 0;
+
+function flushMove() {
+  flushT = null;
+  const dx = Math.trunc(acc.x), dy = Math.trunc(acc.y);
+  if (dx || dy) { acc.x -= dx; acc.y -= dy; pm({ a: "move", dx, dy }); }
+}
+function moveMouse(dx, dy) {
+  const sp = Math.hypot(dx, dy), g = 2 + Math.min(sp / 5, 3);   // makin cepat digeser, makin jauh
+  acc.x += dx * g; acc.y += dy * g;
+  if (!flushT) flushT = setTimeout(flushMove, 12);
+}
+surf.addEventListener("pointerdown", (e) => {
+  try { surf.setPointerCapture(e.pointerId); } catch (_) {}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 1) tap = { t: performance.now(), moved: 0, max: 1 };
+  else if (tap) tap.max = Math.max(tap.max, ptrs.size);
+  e.preventDefault();
+});
+surf.addEventListener("pointermove", (e) => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (tap) tap.moved += Math.abs(dx) + Math.abs(dy);
+  if (ptrs.size === 1) moveMouse(dx, dy);
+  else {
+    wheelAcc += dy / ptrs.size;                       // 2 jari geser = scroll (arah natural)
+    const n = Math.trunc(wheelAcc / 14);
+    if (n) { wheelAcc -= n * 14; pm({ a: "wheel", n }); }
+  }
+  e.preventDefault();
+});
+function padUp(e) {
+  if (!ptrs.delete(e.pointerId)) return;
+  if (ptrs.size === 0 && tap) {
+    if (performance.now() - tap.t < 280 && tap.moved < 12) pm({ a: "click", b: tap.max >= 2 ? "r" : "l" });
+    tap = null; wheelAcc = 0;
+  }
+}
+surf.addEventListener("pointerup", padUp);
+surf.addEventListener("pointercancel", padUp);
+
+function holdBtn(id, onDown, onUp) {
+  const el = $(id); let on = false;
+  const down = (e) => { if (on) return; on = true; el.classList.add("on"); try { el.setPointerCapture(e.pointerId); } catch (_) {} onDown(); e.preventDefault(); };
+  const up = () => { if (!on) return; on = false; el.classList.remove("on"); onUp(); };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
+}
+holdBtn("bL", () => pm({ a: "down", b: "l" }), () => pm({ a: "up", b: "l" }));   // tahan Kiri + geser = seret
+holdBtn("bR", () => pm({ a: "down", b: "r" }), () => pm({ a: "up", b: "r" }));
+let wheelT = null;
+function wheelHold(id, n) {
+  holdBtn(id, () => { pm({ a: "wheel", n }); wheelT = setInterval(() => pm({ a: "wheel", n }), 90); }, () => { clearInterval(wheelT); wheelT = null; });
+}
+wheelHold("bU", 2); wheelHold("bD", -2);
 
 // ---------------- koneksi ke PC ----------------
 let ws = null, gen = 0, authFailed = false;
@@ -644,7 +741,7 @@ function handleTaps() {
   else if (n === 1) { happy = 1; pulse = 0.6; }
 }
 document.addEventListener("pointerdown", (e) => {
-  if (cfgOpen || e.target.closest("#cfg,#scr,#scrOpen,#panel,#tabbtn")) return;
+  if (cfgOpen || e.target.closest("#cfg,#dock,#openers,#panel,#tabbtn")) return;
   pressTimer = setTimeout(() => { pressTimer = null; taps = 0; clearTimeout(tapTimer); openCfg(); }, 900);
 });
 document.addEventListener("pointerup", () => {
