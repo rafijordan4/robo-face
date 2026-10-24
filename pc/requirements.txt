@@ -1,2 +1,2 @@
 websockets>=13
-winsdk
+# winsdk   (opsional: notif native Windows, hanya untuk Python 3.12 ke bawah; boleh dilewati)

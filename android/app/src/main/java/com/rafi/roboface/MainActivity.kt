@@ -12,17 +12,25 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
 
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
     private var recognizer: SpeechRecognizer? = null
     private var micOn = false
+    @Volatile private var speaking = false
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
     private val handler = Handler(Looper.getMainLooper())
     private var audio: AudioManager? = null
 
@@ -41,8 +49,41 @@ class MainActivity : Activity() {
         web.loadUrl("file:///android_asset/face.html")
         hideSystemUi()
 
+        initTts()
+
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+        }
+    }
+
+    private fun initTts() {
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.setLanguage(Locale("id", "ID"))
+                tts?.setSpeechRate(1.05f)
+                tts?.setPitch(1.2f)
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnUiThread {
+                            speaking = true
+                            recognizer?.cancel()
+                            js("onSpeakStart()")
+                        }
+                    }
+                    override fun onDone(utteranceId: String?) { ended() }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { ended() }
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) { ended() }
+                    private fun ended() {
+                        runOnUiThread {
+                            speaking = false
+                            js("onSpeakEnd()")
+                            restartSoon(300)
+                        }
+                    }
+                })
+                ttsReady = true
+            }
         }
     }
 
@@ -89,6 +130,48 @@ class MainActivity : Activity() {
         fun stopMic() {
             runOnUiThread { shutdownMic() }
         }
+
+        @JavascriptInterface
+        fun speak(text: String) {
+            runOnUiThread {
+                if (ttsReady) tts?.speak(text.take(600), TextToSpeech.QUEUE_FLUSH, null, "u1")
+            }
+        }
+
+        @JavascriptInterface
+        fun stopSpeak() {
+            runOnUiThread { tts?.stop() }
+        }
+
+        // Panggilan HTTPS ke Gemini dari native (bebas masalah CORS). Hanya host Gemini yang diizinkan.
+        @JavascriptInterface
+        fun http(id: Int, url: String, key: String, body: String) {
+            if (!url.startsWith("https://generativelanguage.googleapis.com/")) {
+                js("onHttp($id, -1, ${JSONObject.quote("URL ditolak")})")
+                return
+            }
+            Thread {
+                var status = 0
+                var text = ""
+                try {
+                    val c = URL(url).openConnection() as HttpURLConnection
+                    c.requestMethod = "POST"
+                    c.connectTimeout = 15000
+                    c.readTimeout = 60000
+                    c.doOutput = true
+                    c.setRequestProperty("Content-Type", "application/json")
+                    c.setRequestProperty("x-goog-api-key", key)
+                    c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    status = c.responseCode
+                    val st = if (status in 200..299) c.inputStream else c.errorStream
+                    text = st?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                } catch (e: Exception) {
+                    status = -1
+                    text = e.message ?: "network error"
+                }
+                js("onHttp($id, $status, ${JSONObject.quote(text)})")
+            }.start()
+        }
     }
 
     private fun shutdownMic() {
@@ -109,6 +192,7 @@ class MainActivity : Activity() {
 
     private fun listen() {
         if (!micOn) return
+        if (speaking) { restartSoon(500); return }   // jangan dengar suara sendiri
         if (recognizer == null) {
             recognizer = SpeechRecognizer.createSpeechRecognizer(this).also {
                 it.setRecognitionListener(listener)
@@ -182,6 +266,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         shutdownMic()
+        tts?.shutdown()
         web.destroy()
         super.onDestroy()
     }

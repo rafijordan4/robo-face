@@ -1,9 +1,12 @@
-// Service worker: sambung ke server PC (ws://127.0.0.1:8765), kirim status, jalankan perintah.
+// Service worker: sambung ke server PC (ws://127.0.0.1:8765), kirim status, jalankan perintah + tool AI.
 let ws = null;
 const audibleTabs = new Set();
 const pwdFrames = new Set(); // "tabId:frameId"
 let mediaTimer = null;
 let lastMedia = null;
+let aiTabId = null;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function send(o) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(o));
@@ -18,9 +21,15 @@ function connect() {
     pushMedia(true);
     send({ t: "password", active: pwdFrames.size > 0 });
   };
-  ws.onmessage = (ev) => {
+  ws.onmessage = async (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     if (m.t === "ext_cmd") runCmd(m.action, m.url);
+    else if (m.t === "ext_tool") {
+      let result;
+      try { result = await runTool(m.name, m.args || {}); }
+      catch (e) { result = { error: String((e && e.message) || e) }; }
+      send({ t: "tool_result", id: m.id, result });
+    }
   };
   ws.onclose = () => { ws = null; setTimeout(connect, 2000); };
   ws.onerror = () => {};
@@ -42,6 +51,7 @@ async function activeTab() {
   return t;
 }
 
+// ---------- perintah suara sederhana (tanpa Gemini) ----------
 async function runCmd(action, url) {
   try {
     if (action === "new_tab" || action === "open_url") {
@@ -65,6 +75,120 @@ async function runCmd(action, url) {
   } catch (e) {}
 }
 
+// ---------- tool AI ----------
+function safeUrl(u) {
+  u = String(u || "").trim();
+  if (!u) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = "https://" + u;
+  try {
+    const p = new URL(u);
+    if (p.protocol !== "http:" && p.protocol !== "https:") return null;
+    return p.href;
+  } catch (e) { return null; }
+}
+
+async function waitComplete(tabId, max) {
+  const end = Date.now() + max;
+  while (Date.now() < end) {
+    try {
+      const t = await chrome.tabs.get(tabId);
+      if (t.status === "complete") return;
+    } catch (e) { return; }
+    await sleep(150);
+  }
+}
+
+async function targetTab() {
+  if (aiTabId != null) {
+    try { return await chrome.tabs.get(aiTabId); } catch (e) { aiTabId = null; }
+  }
+  const t = await activeTab();
+  if (t) aiTabId = t.id;
+  return t;
+}
+
+async function agent(name, args) {
+  const t = await targetTab();
+  if (!t) return { error: "Tidak ada tab Chrome. Pakai open_url dulu." };
+  if (!/^https?:/i.test(t.url || "")) {
+    return { error: "Tab ini halaman khusus (" + (t.url || "kosong") + "). Pakai open_url untuk membuka situs dulu." };
+  }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["agent.js"] });
+    const res = await chrome.tabs.sendMessage(t.id, { t: "agent", name, args }, { frameId: 0 });
+    if (res && !res.error && (name === "click" || name === "type_text")) {
+      await sleep(1500);
+      await waitComplete(t.id, 4000);
+      try { const t2 = await chrome.tabs.get(t.id); res.page = { url: t2.url, title: t2.title }; } catch (e) {}
+    }
+    return res || { error: "Tidak ada respons dari halaman" };
+  } catch (e) {
+    return { error: "Gagal mengendalikan halaman: " + String((e && e.message) || e) };
+  }
+}
+
+async function runTool(name, a) {
+  if (name === "open_url") {
+    const url = safeUrl(a.url);
+    if (!url) return { error: "URL tidak valid atau tidak diizinkan (hanya http/https)." };
+    let tab = null;
+    if (!a.new_tab && aiTabId != null) {
+      try { tab = await chrome.tabs.update(aiTabId, { url, active: true }); } catch (e) { tab = null; }
+    }
+    if (!tab) tab = await chrome.tabs.create({ url, active: true });
+    aiTabId = tab.id;
+    try { chrome.windows.update(tab.windowId, { focused: true }); } catch (e) {}
+    await sleep(600);
+    await waitComplete(tab.id, 8000);
+    const t2 = await chrome.tabs.get(tab.id);
+    return { ok: true, url: t2.url, title: t2.title };
+  }
+
+  if (name === "browser_nav") {
+    const act = a.action;
+    if (act === "new_tab") {
+      const tab = await chrome.tabs.create({ active: true });
+      aiTabId = tab.id;
+      try { chrome.windows.update(tab.windowId, { focused: true }); } catch (e) {}
+      return { ok: true, note: "Tab kosong dibuka. Pakai open_url untuk isi situs." };
+    }
+    const t = await targetTab();
+    if (!t) return { error: "Tidak ada tab." };
+    if (act === "back") await chrome.tabs.goBack(t.id);
+    else if (act === "forward") await chrome.tabs.goForward(t.id);
+    else if (act === "reload") await chrome.tabs.reload(t.id);
+    else if (act === "close_tab") { await chrome.tabs.remove(t.id); aiTabId = null; return { ok: true }; }
+    else if (act === "next_tab" || act === "prev_tab") {
+      const tabs = (await chrome.tabs.query({ windowId: t.windowId })).sort((x, y) => x.index - y.index);
+      const i = tabs.findIndex((x) => x.id === t.id);
+      const n = tabs[(i + (act === "next_tab" ? 1 : -1) + tabs.length) % tabs.length];
+      await chrome.tabs.update(n.id, { active: true });
+      aiTabId = n.id;
+      return { ok: true, title: n.title, url: n.url };
+    } else return { error: "Aksi navigasi tidak dikenal." };
+    await waitComplete(t.id, 6000);
+    const t2 = await chrome.tabs.get(t.id);
+    return { ok: true, url: t2.url, title: t2.title };
+  }
+
+  if (name === "list_tabs") {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    return { tabs: tabs.slice(0, 20).map((t) => ({ id: t.id, title: (t.title || "").slice(0, 60), url: (t.url || "").slice(0, 80), active: t.active, ai: t.id === aiTabId })) };
+  }
+
+  if (name === "focus_tab") {
+    try {
+      const t = await chrome.tabs.update(Number(a.tab_id), { active: true });
+      aiTabId = t.id;
+      return { ok: true, title: t.title };
+    } catch (e) { return { error: "Tab tidak ditemukan." }; }
+  }
+
+  if (["snapshot", "click", "type_text", "scroll", "media"].includes(name)) return agent(name, a);
+  return { error: "Tool tidak dikenal: " + name };
+}
+
+// ---------- status ----------
 chrome.tabs.onUpdated.addListener((id, ci) => {
   if ("audible" in ci) {
     if (ci.audible) audibleTabs.add(id); else audibleTabs.delete(id);
@@ -76,6 +200,7 @@ chrome.tabs.onRemoved.addListener((id) => {
   audibleTabs.delete(id);
   pushMedia(false);
   clearPwd(id);
+  if (id === aiTabId) aiTabId = null;
 });
 
 function clearPwd(tabId) {
@@ -93,6 +218,8 @@ chrome.runtime.onMessage.addListener((m, sender) => {
     send({ t: "password", active: pwdFrames.size > 0 });
   } else if (m.t === "notif") {
     handleNotif(m);
+  } else if (m.t === "ai_stop") {
+    send({ t: "ai_stop" });
   }
 });
 

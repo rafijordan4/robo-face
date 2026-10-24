@@ -1,39 +1,38 @@
-# Robo Face
+# Robo Face v2
 
-Muka lucu di HP (landscape) yang matanya ngikutin mouse PC Windows.
+Muka lucu di HP (landscape) yang ikut mouse PC Windows, plus asisten Gemini yang bisa mengendalikan Chrome
+lewat kursor AI kuning.
 
 ```
-robo-face/
-  pc/          server Python (jalan di PC)
-  chrome-ext/  ekstensi Chrome (video, password, notif web, perintah tab)
-  android/     project APK
-  .github/workflows/build.yml   build APK otomatis di GitHub
+pc/          server Python (jalan di PC)
+chrome-ext/  ekstensi Chrome (status video/password/notif + agen AI)
+android/     project APK (build lewat GitHub Actions)
 ```
 
-## 1. PC (Windows)
+## PC
 ```
 cd pc
-pip install -r requirements.txt     # Python 3.10-3.12
+pip install websockets
 python server.py
 ```
-Catat **IP PC** dan **PIN** yang muncul. Kalau Windows tanya firewall, izinkan di jaringan Private.
-Notif native Windows butuh izin: Settings > Privacy & security > Notifications.
+Catat IP dan PIN. Izinkan firewall (Private network).
 
-## 2. Ekstensi Chrome
-`chrome://extensions` > aktifkan Developer mode > Load unpacked > pilih folder `chrome-ext`.
-Server `server.py` harus sudah jalan (ekstensi otomatis nyambung sendiri).
+## Chrome
+chrome://extensions > Developer mode > Load unpacked > folder `chrome-ext`
+(kalau sudah terpasang: klik tombol reload di kartunya, lalu refresh tab).
 
-## 3. APK
-Push folder ini ke repo GitHub > tab **Actions** > Build APK > download artifact `robo-face-apk` > install `app-debug.apk`.
+## APK
+Push ke GitHub > Actions > Build APK > download artifact `robo-face-apk`.
 
-## 4. Pakai
-- HP dan PC satu WiFi atau hotspot HP. **Mau tetap Bluetooth?** Nyalakan Bluetooth tethering di HP, sambungkan PC lewat Bluetooth PAN. IP-nya dipakai sama persis.
-- Buka app, tahan layar 1 detik, isi IP PC + PIN, Simpan.
-- 2 tap: mic on/off. Ucapkan perintah.
-- 4 tap: tidur. 1 tap saat tidur: bangun.
+## Di HP
+Tahan layar 1 detik: isi IP PC, PIN, API key Gemini (aistudio.google.com/apikey), lalu Simpan.
+- Tap 2x: mic on/off. Tap 4x: tidur, tap 1x: bangun.
+- Panah di kanan: panel ketik. Kotak kiri bawah: layar PC (tombol - dan + untuk ukuran, x untuk tutup).
+- Tanpa API key: mode perintah biasa ("buka tab baru", "cari lofi di youtube", ...).
 
-## Perintah suara
-- "buka tab baru", "tab baru youtube"
-- "tutup tab", "tab berikutnya", "tab sebelumnya", "refresh", "kembali"
-- "buka youtube", "buka github.com", "cari resep nasi goreng", "cari lofi di youtube"
-- "volume naik/turun", "mute", "jeda", "putar", "lagu berikutnya"
+## Aturan keamanan AI
+- Kursor kuning hanya overlay di halaman Chrome, tidak menggerakkan mouse Windows.
+- Tidak mengisi password, OTP, PIN, kartu. Tidak membuka link download/skrip.
+- Aksi seperti bayar, hapus, logout butuh konfirmasi dari kamu.
+- Tombol merah "Stop AI" muncul di halaman, menghentikan semua aksi.
+- Buka aplikasi hanya dari shortcut Start Menu/Desktop; cmd, PowerShell, terminal, regedit, dll diblokir.

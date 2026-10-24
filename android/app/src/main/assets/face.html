@@ -9,22 +9,53 @@
 html,body{margin:0;height:100%;background:#0b0f1a;overflow:hidden;touch-action:manipulation;
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+input{-webkit-user-select:text;user-select:text}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
-#bubble{position:fixed;left:50%;bottom:5%;transform:translateX(-50%);max-width:70%;
-  background:#fff;color:#1a1a2e;padding:10px 20px;border-radius:20px;font-weight:700;font-size:20px;
-  text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 6px 24px #0008}
-#notif{position:fixed;right:3%;top:7%;width:34%;max-width:420px;background:#1b2236;color:#fff;
+#bubble{position:fixed;left:50%;bottom:5%;transform:translateX(-50%);max-width:60%;
+  background:#fff;color:#1a1a2e;padding:10px 20px;border-radius:20px;font-weight:700;font-size:19px;
+  text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 6px 24px #0008;z-index:4}
+#notif{position:fixed;right:3%;top:7%;width:34%;max-width:420px;background:#1b2236;color:#fff;z-index:9;
   border:1px solid #33405f;border-radius:18px;padding:14px 16px;opacity:0;transform:translateY(-14px) scale(.97);
   transition:opacity .3s,transform .3s;pointer-events:none;box-shadow:0 10px 30px #000a}
 #notif .app{font-size:12px;color:#8fa0c8;letter-spacing:.04em;text-transform:uppercase}
 #notif .title{font-size:19px;font-weight:700;margin-top:2px;word-break:break-word}
 #notif .body{font-size:15px;color:#d5dcf0;margin-top:4px;word-break:break-word}
 #notif img{display:none;width:100%;max-height:42vh;object-fit:contain;border-radius:12px;margin-top:10px;background:#fff}
-#cfg{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:10}
-#cfg .box{background:#1b2236;color:#fff;border-radius:20px;padding:22px;width:min(440px,86vw)}
+
+/* layar PC (kiri bawah) */
+#scr{position:fixed;left:10px;bottom:10px;background:#000;border:2px solid #33405f;border-radius:12px;
+  overflow:hidden;box-shadow:0 8px 24px #000a;display:none;z-index:5;width:min(22vw,calc(78vh * 1.7778))}
+#scr .bar{display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b2236;color:#cfd8f5;font-size:12px}
+#scr .bar b{flex:1;font-weight:600}
+#scr button,#panel button.ib{border:0;background:#2a3350;color:#fff;border-radius:7px;min-width:28px;height:24px;font-size:15px;line-height:1;padding:0 6px}
+#scr img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}
+#scrOpen{position:fixed;left:10px;bottom:10px;display:none;z-index:5;border:1px solid #33405f;background:#1b2236;
+  color:#fff;border-radius:12px;padding:8px 12px;font-size:14px}
+
+/* panel ketik (kanan) */
+#panel{position:fixed;top:0;right:0;bottom:0;width:36vw;background:#10162a;border-left:1px solid #2a3350;
+  transform:translateX(100%);transition:transform .28s;display:flex;flex-direction:column;z-index:6;color:#fff}
+#panel.open{transform:none}
+#panel .hd{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #2a3350;font-weight:700;font-size:14px}
+#panel .hd span{flex:1}
+#msgs{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+.m{max-width:92%;padding:7px 11px;border-radius:14px;font-size:14px;line-height:1.35;word-break:break-word;-webkit-user-select:text;user-select:text}
+.m.u{align-self:flex-end;background:#ffc857;color:#1a1a2e}
+.m.a{align-self:flex-start;background:#222c48;color:#eaf0ff}
+.m.t{align-self:flex-start;background:none;color:#8a9ac4;font-size:12px;font-style:italic;padding:2px 4px}
+#inrow{display:flex;gap:6px;padding:8px;border-top:1px solid #2a3350}
+#inp{flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid #3a4870;background:#0f1424;color:#fff;font-size:15px}
+#send{border:0;border-radius:12px;background:#ffc857;color:#1a1a2e;font-weight:800;padding:0 14px;font-size:15px}
+#tabbtn{position:fixed;right:0;top:50%;transform:translateY(-50%);width:26px;height:68px;border-radius:12px 0 0 12px;
+  background:#1b2236;color:#cfd8f5;border:1px solid #33405f;border-right:0;z-index:7;font-size:16px;padding:0;transition:right .28s}
+#tabbtn.open{right:36vw}
+
+#cfg{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20}
+#cfg .box{background:#1b2236;color:#fff;border-radius:20px;padding:20px;width:min(460px,88vw);max-height:92vh;overflow:auto}
 #cfg h2{margin:0 0 4px;font-size:20px}
-#cfg p{margin:0 0 12px;color:#9fb0d8;font-size:13px;line-height:1.4}
-#cfg input{width:100%;padding:12px 14px;margin:5px 0;border-radius:12px;border:1px solid #3a4870;background:#0f1424;color:#fff;font-size:17px}
+#cfg p{margin:0 0 10px;color:#9fb0d8;font-size:13px;line-height:1.4}
+#cfg input[type=text],#cfg input[type=password]{width:100%;padding:11px 14px;margin:4px 0;border-radius:12px;border:1px solid #3a4870;background:#0f1424;color:#fff;font-size:16px}
+#cfg label.ck{display:flex;gap:8px;align-items:center;margin:8px 0 0;font-size:14px}
 #cfg .row{display:flex;gap:10px;margin-top:12px}
 #cfg button{flex:1;padding:12px;border:0;border-radius:12px;font-size:16px;font-weight:700}
 #cfg .ok{background:#ffc857;color:#1a1a2e}
@@ -35,11 +66,28 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <canvas id="cv"></canvas>
 <div id="bubble"></div>
 <div id="notif"><div class="app" id="nApp"></div><div class="title" id="nTitle"></div><div class="body" id="nBody"></div><img id="nImg" alt=""></div>
+
+<div id="scr">
+  <div class="bar"><b>Layar PC</b><button id="sMin" title="Kecilkan">&minus;</button><button id="sPlus" title="Besarkan">+</button><button id="sX" title="Tutup">&times;</button></div>
+  <img id="scrImg" alt="">
+</div>
+<button id="scrOpen">&#128421; Layar PC</button>
+
+<button id="tabbtn" title="Panel ketik">&#9664;</button>
+<div id="panel">
+  <div class="hd"><span>Robo AI</span><button class="ib" id="pGear" title="Pengaturan">&#9881;</button><button class="ib" id="pX" title="Tutup">&times;</button></div>
+  <div id="msgs"></div>
+  <div id="inrow"><input id="inp" type="text" placeholder="Ketik perintah&hellip;" autocomplete="off"><button id="send">Kirim</button></div>
+</div>
+
 <div id="cfg"><div class="box">
-  <h2>Sambung ke PC</h2>
-  <p>Isi IP PC dan PIN yang tampil di jendela <b>server.py</b>. HP dan PC harus satu WiFi / hotspot yang sama.</p>
-  <input id="fHost" inputmode="decimal" placeholder="IP PC, contoh 192.168.43.10" autocomplete="off">
-  <input id="fPin" inputmode="numeric" placeholder="PIN (4 angka)" autocomplete="off">
+  <h2>Pengaturan</h2>
+  <p>IP dan PIN dari jendela <b>server.py</b> (satu WiFi). API key Gemini dari aistudio.google.com. Key disimpan di HP ini saja.</p>
+  <input type="text" id="fHost" inputmode="decimal" placeholder="IP PC, contoh 192.168.1.81" autocomplete="off">
+  <input type="text" id="fPin" inputmode="numeric" placeholder="PIN (4 angka)" autocomplete="off">
+  <input type="password" id="fKey" placeholder="API key Gemini (kosongkan = mode perintah biasa)" autocomplete="off">
+  <input type="text" id="fModel" placeholder="Model, default gemini-2.5-flash" autocomplete="off">
+  <label class="ck"><input type="checkbox" id="fTts" checked> Robo bicara (suara)</label>
   <div class="row"><button class="no" id="bNo">Batal</button><button class="ok" id="bOk">Simpan</button></div>
 </div></div>
 
@@ -55,15 +103,17 @@ function resize() {
 addEventListener("resize", resize); resize();
 
 // ---------------- state ----------------
-const S = { connected: false, micOn: false, sleeping: false, headset: false, pwd: false, mic: 0 };
-let tx = 0.5, ty = 0.5;               // posisi mouse PC (0..1)
-let lx = 0, ly = 0;                   // arah pandang saat ini
-let eyeOpen = 1, blinkStart = -10, nextBlink = 2;
+const S = { connected: false, micOn: false, sleeping: false, headset: false, pwd: false, mic: 0, ai: false, talking: false };
+let tx = 0.5, ty = 0.5;
+let lx = 0, ly = 0;
+let blinkStart = -10, nextBlink = 2, eyeOpen = 1;
 let mouthOpen = 0, happy = 0, pulse = 0, sur = 0;
-let pawAmt = 0, headAmt = 0, sleepAmt = 0;
+let pawAmt = 0, headAmt = 0, sleepAmt = 0, panelAmt = 0, panelOpen = false;
 let lookNotifUntil = 0;
 
-// ---------------- util gambar ----------------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (p) => 1 - Math.pow(1 - p, 3);
+
 function rr(x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -73,11 +123,9 @@ function rr(x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ease = (p) => 1 - Math.pow(1 - p, 3);
 
 function drawEye(x, y, r, open) {
-  if (open < 0.12) { // mata tertutup: garis melengkung
+  if (open < 0.12) {
     ctx.strokeStyle = "#3a2a1a"; ctx.lineWidth = r * 0.16; ctx.lineCap = "round";
     ctx.beginPath(); ctx.arc(x, y - r * 0.15, r * 0.62, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
     return;
@@ -112,15 +160,20 @@ function frame(ms) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#0b0f1a"; ctx.fillRect(0, 0, W, H);
 
+  panelAmt += ((panelOpen ? 1 : 0) - panelAmt) * 0.2;
+  const vw = W - W * 0.36 * ease(clamp(panelAmt, 0, 1));
+  $("bubble").style.left = (vw / 2) + "px";
+
   // arah pandang
+  const scrShown = $("scr").style.display === "block";
   let gx, gy;
   if (t < lookNotifUntil) { gx = 1; gy = -0.7; }
+  else if (S.ai && scrShown) { gx = -0.9; gy = 0.75; }
   else if (S.connected) { gx = (tx - 0.5) * 2.2; gy = (ty - 0.5) * 2.2; }
   else { gx = Math.sin(t * 0.7) * 0.7; gy = Math.sin(t * 0.45) * 0.35; }
   gx = clamp(gx, -1, 1); gy = clamp(gy, -1, 1);
   lx += (gx - lx) * 0.2; ly += (gy - ly) * 0.2;
 
-  // kedip + kelopak
   if (t > nextBlink) { blinkStart = t; nextBlink = t + 2 + Math.random() * 3.5; }
   const bp = (t - blinkStart) / 0.18;
   const blink = bp >= 0 && bp <= 1 ? Math.sin(bp * Math.PI) : 0;
@@ -128,46 +181,43 @@ function frame(ms) {
   eyeOpen += (eyeTarget - eyeOpen) * 0.2;
   pulse = Math.max(0, pulse - 0.02);
   happy = Math.max(0, happy - 0.012);
-  sur += (Math.max(S.micOn ? 0.4 : 0, pulse) - sur) * 0.2;
+  sur += (Math.max(S.micOn ? 0.4 : 0, pulse, S.ai ? 0.25 : 0) - sur) * 0.2;
   const open = eyeOpen * (1 - blink * 0.96) * (1 + sur * 0.2);
 
   S.mic *= 0.92;
-  mouthOpen += ((S.micOn ? S.mic * 0.9 : 0) + (happy > 0 ? 0.35 : 0) - mouthOpen) * 0.35;
+  const talk = S.talking ? 0.25 + 0.3 * Math.abs(Math.sin(t * 13)) : 0;
+  mouthOpen += ((S.micOn ? S.mic * 0.9 : 0) + (happy > 0 ? 0.35 : 0) + talk - mouthOpen) * 0.35;
   pawAmt += ((S.pwd && !S.sleeping ? 1 : 0) - pawAmt) * 0.14;
   headAmt += ((S.headset ? 1 : 0) - headAmt) * 0.12;
   sleepAmt += ((S.sleeping ? 1 : 0) - sleepAmt) * 0.08;
 
-  // geometri
-  const fh = H * 0.78, fw = Math.min(W * 0.62, fh * 1.45);
-  const cx = W / 2, rx = fw / 2, ry = fh / 2;
+  const fh = H * 0.78, fw = Math.min(vw * 0.62, fh * 1.45);
+  const cx = vw / 2, rx = fw / 2, ry = fh / 2;
   const bob = S.headset ? Math.sin(t * 7) * fh * 0.012 : (S.sleeping ? Math.sin(t * 1.5) * fh * 0.01 : 0);
   const cy = H * 0.5 + bob;
   const er = Math.min(rx * 0.26, ry * 0.36);
   const ex = rx * 0.42, ey = cy - ry * 0.1;
 
-  // cincin mic
-  if (S.micOn) {
-    const k = 1.06 + 0.02 * Math.sin(t * 5) + S.mic * 0.05;
+  if (S.micOn || S.ai) {
+    const k = 1.06 + 0.02 * Math.sin(t * 5) + (S.micOn ? S.mic * 0.05 : 0);
+    const col = S.micOn ? "0,229,255" : "255,214,10";
     ctx.save();
-    ctx.strokeStyle = "rgba(0,229,255,.85)"; ctx.lineWidth = 6;
-    ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 24;
+    ctx.strokeStyle = "rgba(" + col + ",.85)"; ctx.lineWidth = 6;
+    ctx.shadowColor = "rgb(" + col + ")"; ctx.shadowBlur = 24;
     ctx.beginPath(); ctx.ellipse(cx, cy, rx * k, ry * k, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
-  // muka
   const g = ctx.createRadialGradient(cx - rx * 0.2, cy - ry * 0.35, ry * 0.1, cx, cy, ry * 1.15);
   g.addColorStop(0, "#ffe9a8"); g.addColorStop(1, "#ffbe55");
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
 
-  // pipi
   ctx.fillStyle = "rgba(255,110,140,.45)";
   for (const s of [-1, 1]) {
     ctx.beginPath(); ctx.ellipse(cx + s * rx * 0.6, cy + ry * 0.25, rx * 0.09, ry * 0.07, 0, 0, Math.PI * 2); ctx.fill();
   }
 
-  // alis
   ctx.strokeStyle = "#8a5a2b"; ctx.lineWidth = er * 0.11; ctx.lineCap = "round";
   const brow = ey - er * 1.3 - sur * er * 0.35 + (eyeTarget === 0 ? er * 0.12 : 0);
   for (const s of [-1, 1]) {
@@ -176,11 +226,9 @@ function frame(ms) {
     ctx.quadraticCurveTo(x, brow - er * 0.2, x + er * 0.55, brow + er * 0.08); ctx.stroke();
   }
 
-  // mata
   drawEye(cx - ex, ey, er, open);
   drawEye(cx + ex, ey, er, open);
 
-  // mulut
   const my = cy + ry * 0.42, mw = rx * 0.2;
   const oh = mouthOpen * ry * 0.28;
   if (oh > 3) {
@@ -194,15 +242,11 @@ function frame(ms) {
     ctx.beginPath(); ctx.arc(cx, my - w * 0.5, w, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
   }
 
-  // tangan nutup mata (password)
   if (pawAmt > 0.02) {
     const p = ease(clamp(pawAmt, 0, 1));
-    for (const s of [-1, 1]) {
-      drawPaw(cx + s * ex, (cy + ry * 1.15) + (ey - (cy + ry * 1.15)) * p, er);
-    }
+    for (const s of [-1, 1]) drawPaw(cx + s * ex, (cy + ry * 1.15) + (ey - (cy + ry * 1.15)) * p, er);
   }
 
-  // headset
   if (headAmt > 0.02) {
     ctx.save(); ctx.globalAlpha = clamp(headAmt, 0, 1);
     ctx.strokeStyle = "#2d3142"; ctx.lineWidth = fh * 0.045; ctx.lineCap = "round";
@@ -221,7 +265,6 @@ function frame(ms) {
     ctx.restore();
   }
 
-  // mode tidur
   if (sleepAmt > 0.02) {
     ctx.fillStyle = "rgba(5,8,20," + (0.55 * sleepAmt) + ")"; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "rgba(200,220,255," + sleepAmt + ")";
@@ -234,16 +277,15 @@ function frame(ms) {
     ctx.globalAlpha = 1;
   }
 
-  // status kecil
   ctx.fillStyle = S.connected ? "#3ddc84" : "#ff5d5d";
-  ctx.beginPath(); ctx.arc(W - 22, 22, 7, 0, Math.PI * 2); ctx.fill();
-  if (S.micOn) {
-    ctx.fillStyle = "#00e5ff"; ctx.font = "bold 14px system-ui"; ctx.textAlign = "right";
-    ctx.fillText("MIC", W - 38, 27); ctx.textAlign = "left";
-  }
+  ctx.beginPath(); ctx.arc(vw - 22, 22, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.textAlign = "right"; ctx.font = "bold 14px system-ui";
+  if (S.micOn) { ctx.fillStyle = "#00e5ff"; ctx.fillText("MIC", vw - 38, 27); }
+  else if (S.ai) { ctx.fillStyle = "#ffd60a"; ctx.fillText("AI", vw - 38, 27); }
+  ctx.textAlign = "left";
   if (!S.connected && !S.sleeping) {
     ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.font = "14px system-ui"; ctx.textAlign = "center";
-    ctx.fillText("Belum tersambung. Tahan layar 1 detik untuk atur IP & PIN.", W / 2, H - 16); ctx.textAlign = "left";
+    ctx.fillText("Belum tersambung. Tahan layar 1 detik untuk atur IP, PIN, API key.", vw / 2, H - 16); ctx.textAlign = "left";
   }
   requestAnimationFrame(frame);
 }
@@ -274,10 +316,40 @@ function showNotif(m) {
   pulse = 1; lookNotifUntil = performance.now() / 1000 + 1.6;
 }
 
-// ---------------- koneksi ke PC ----------------
-let ws = null, gen = 0, cfg = {};
+// ---------------- konfigurasi ----------------
+let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem("cfg") || "{}"); } catch (e) { cfg = {}; }
+function saveCfg() { try { localStorage.setItem("cfg", JSON.stringify(cfg)); } catch (e) {} }
 
+// ---------------- layar PC ----------------
+const SIZES = [{ vw: 22, w: 480 }, { vw: 34, w: 640 }, { vw: 50, w: 800 }, { vw: 66, w: 960 }];
+let scrSize = clamp(parseInt(cfg.scrSize, 10) || 0, 0, SIZES.length - 1);
+let scrVisible = cfg.scrVisible !== false;
+let lastFrameUrl = null;
+
+function applyScreen() {
+  const box = $("scr"), open = $("scrOpen");
+  const want = scrVisible && !S.sleeping;
+  box.style.display = want ? "block" : "none";
+  open.style.display = (!scrVisible && !S.sleeping) ? "block" : "none";
+  box.style.width = "min(" + SIZES[scrSize].vw + "vw, calc(78vh * 1.7778))";
+  wsSend({ t: "screen", on: want, w: SIZES[scrSize].w });
+  cfg.scrSize = scrSize; cfg.scrVisible = scrVisible; saveCfg();
+}
+$("sPlus").onclick = () => { scrSize = Math.min(SIZES.length - 1, scrSize + 1); applyScreen(); };
+$("sMin").onclick = () => { scrSize = Math.max(0, scrSize - 1); applyScreen(); };
+$("sX").onclick = () => { scrVisible = false; applyScreen(); };
+$("scrOpen").onclick = () => { scrVisible = true; applyScreen(); };
+
+function showFrame(blob) {
+  const u = URL.createObjectURL(blob), prev = lastFrameUrl, img = $("scrImg");
+  lastFrameUrl = u;
+  img.onload = () => { if (prev) URL.revokeObjectURL(prev); };
+  img.src = u;
+}
+
+// ---------------- koneksi ke PC ----------------
+let ws = null, gen = 0;
 function wsSend(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function connect() {
@@ -286,37 +358,244 @@ function connect() {
   S.connected = false;
   if (!cfg.host) { openCfg(); return; }
   try { ws = new WebSocket("ws://" + cfg.host + ":8765"); } catch (e) { setTimeout(() => { if (g === gen) connect(); }, 2500); return; }
+  ws.binaryType = "blob";
   ws.onopen = () => wsSend({ t: "hello", role: "phone", pin: cfg.pin || "" });
-  ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } handle(m); };
-  ws.onclose = () => { if (g !== gen) return; S.connected = false; S.headset = false; S.pwd = false; setTimeout(() => { if (g === gen) connect(); }, 2000); };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data !== "string") { showFrame(ev.data); return; }
+    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    handle(m);
+  };
+  ws.onclose = () => {
+    if (g !== gen) return;
+    S.connected = false; S.headset = false; S.pwd = false;
+    resolveAllTools({ error: "Koneksi ke PC putus" });
+    setTimeout(() => { if (g === gen) connect(); }, 2000);
+  };
 }
 
 function handle(m) {
   switch (m.t) {
-    case "hello_ok": S.connected = true; say("Tersambung ke PC!", 1800); happy = 1; break;
+    case "hello_ok": S.connected = true; say("Tersambung ke PC!", 1800); happy = 1; applyScreen(); break;
     case "auth_fail": say("PIN salah", 3000); openCfg(); break;
     case "mouse": tx = m.x; ty = m.y; break;
     case "media": S.headset = !!m.playing; break;
     case "password": S.pwd = !!m.active; break;
     case "notif": showNotif(m); break;
-    case "cmd_result":
-      say(m.text || "", 2500);
-      if (m.ok) happy = 1;
-      break;
+    case "cmd_result": say(m.text || "", 2500); if (m.ok) happy = 1; break;
+    case "tool_result": { const f = toolWait[m.id]; if (f) { delete toolWait[m.id]; f(m.result); } break; }
+    case "ai_stop": abortAI("Dihentikan dari PC"); break;
   }
+}
+
+// ---------------- chat panel ----------------
+function addMsg(kind, text) {
+  const box = $("msgs");
+  const d = document.createElement("div");
+  d.className = "m " + kind; d.textContent = text;
+  const st = $("status"); if (st) st.remove();
+  box.appendChild(d);
+  while (box.children.length > 60) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+function setStatus(text) {
+  let st = $("status");
+  if (!text) { if (st) st.remove(); return; }
+  if (!st) { st = document.createElement("div"); st.id = "status"; st.className = "m t"; $("msgs").appendChild(st); }
+  st.textContent = text; $("msgs").scrollTop = $("msgs").scrollHeight;
+}
+function setPanel(open) {
+  panelOpen = open;
+  $("panel").classList.toggle("open", open);
+  $("tabbtn").classList.toggle("open", open);
+  $("tabbtn").innerHTML = open ? "&#9654;" : "&#9664;";
+}
+$("tabbtn").onclick = () => setPanel(!panelOpen);
+$("pX").onclick = () => setPanel(false);
+$("pGear").onclick = () => openCfg();
+function sendTyped() {
+  const v = $("inp").value.trim();
+  if (!v) return;
+  $("inp").value = "";
+  handleUserText(v);
+}
+$("send").onclick = sendTyped;
+$("inp").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendTyped(); } });
+
+function handleUserText(text) {
+  if (S.sleeping) wakeNow();
+  addMsg("u", text);
+  if (/^\s*(stop|berhenti|batal|cukup|diam)\s*[.!]?\s*$/i.test(text)) { abortAI("Oke, berhenti"); return; }
+  if (cfg.key) askAI(text);
+  else if (S.connected) wsSend({ t: "cmd", text });
+  else say("Belum tersambung ke PC", 2500);
+}
+
+// ---------------- Gemini ----------------
+const SYS = "Kamu Robo Face, asisten berwujud muka lucu di layar HP milik Rafi. Bicara Indonesia santai dan SANGAT singkat (maksimal 2 kalimat), tanpa markdown, emoji, atau daftar, karena jawabanmu dibacakan dengan suara. " +
+  "Kamu mengendalikan Chrome di komputer Windows lewat tool. Cara kerja: untuk 'buka tab baru' atau 'buka youtube' pakai open_url dengan new_tab=true. Lalu panggil snapshot untuk melihat elemen bernomor, kemudian click atau type_text memakai nomor itu. " +
+  "Untuk mencari, ketik di kotak pencarian situs dengan type_text dan submit=true supaya kursor AI kelihatan; pakai web_search hanya kalau cara itu gagal. Setelah aksi penting, panggil snapshot lagi untuk memastikan hasilnya sebelum melapor. Nomor elemen berubah di setiap snapshot. " +
+  "Untuk video: pilih hasil yang paling cocok dengan permintaan, klik, lalu sebutkan judulnya. " +
+  "Aturan keras: jangan pernah mengisi password, OTP, PIN, atau data kartu; kalau halaman minta login, bilang user harus login sendiri. Aksi sensitif (bayar, hapus, kirim uang, logout) tanya user dulu, baru ulangi dengan confirm=true. " +
+  "Kamu tidak bisa mengendalikan game atau aplikasi lain selain membukanya (open_app) dan mengatur volume/media (system). Kalau tool error, jelaskan singkat dan coba cara lain paling banyak sekali. Kalau user cuma ngobrol, jawab biasa tanpa tool.";
+
+const STR = { type: "STRING" }, INT = { type: "INTEGER" }, BOOL = { type: "BOOLEAN" }, NUM = { type: "NUMBER" };
+const obj = (properties, required) => ({ type: "OBJECT", properties, required: required || [] });
+const TOOLS = [{ functionDeclarations: [
+  { name: "open_url", description: "Buka situs di Chrome PC. new_tab=true untuk tab baru.", parameters: obj({ url: STR, new_tab: BOOL }, ["url"]) },
+  { name: "snapshot", description: "Lihat halaman aktif: daftar elemen bernomor (link, tombol, kotak ketik) dan teks halaman." },
+  { name: "click", description: "Klik elemen bernomor dari snapshot terbaru (kursor AI kuning bergerak ke sana).", parameters: obj({ id: INT, confirm: BOOL }, ["id"]) },
+  { name: "type_text", description: "Ketik teks ke kotak ketik bernomor. submit=true untuk menekan Enter setelahnya. Tidak boleh untuk password/OTP/kartu.", parameters: obj({ id: INT, text: STR, submit: BOOL }, ["id", "text"]) },
+  { name: "scroll", description: "Gulir halaman.", parameters: obj({ direction: { type: "STRING", enum: ["up", "down"] }, amount: NUM }, ["direction"]) },
+  { name: "media", description: "Kontrol video/audio di halaman.", parameters: obj({ action: { type: "STRING", enum: ["play", "pause", "toggle", "mute", "unmute", "forward", "back"] }, seconds: NUM }, ["action"]) },
+  { name: "browser_nav", description: "Navigasi tab Chrome.", parameters: obj({ action: { type: "STRING", enum: ["back", "forward", "reload", "new_tab", "close_tab", "next_tab", "prev_tab"] } }, ["action"]) },
+  { name: "list_tabs", description: "Daftar tab yang terbuka." },
+  { name: "focus_tab", description: "Pindah ke tab berdasarkan id dari list_tabs.", parameters: obj({ tab_id: INT }, ["tab_id"]) },
+  { name: "open_app", description: "Buka aplikasi Windows (dari Start Menu/Desktop), misalnya Roblox. Hanya membuka, tidak bisa mengendalikannya.", parameters: obj({ name: STR }, ["name"]) },
+  { name: "system", description: "Volume dan media global Windows.", parameters: obj({ action: { type: "STRING", enum: ["volume_up", "volume_down", "mute", "play_pause", "next_track", "prev_track"] } }, ["action"]) },
+  { name: "web_search", description: "Cadangan: buka hasil pencarian langsung.", parameters: obj({ query: STR, site: { type: "STRING", enum: ["google", "youtube"] }, new_tab: BOOL }, ["query"]) },
+] }];
+
+const TOOL_LABEL = { open_url: "Membuka situs…", snapshot: "Melihat halaman…", click: "Mengklik…", type_text: "Mengetik…", scroll: "Scroll…",
+  media: "Kontrol video…", browser_nav: "Navigasi tab…", list_tabs: "Cek tab…", focus_tab: "Pindah tab…", open_app: "Membuka aplikasi…", system: "Kontrol sistem…", web_search: "Mencari…" };
+
+// HTTP: native (Android) atau fetch (uji di browser)
+const httpWait = {}; let httpSeq = 0;
+window.onHttp = function (id, status, text) { const f = httpWait[id]; if (f) { delete httpWait[id]; f({ status, text }); } };
+function httpPost(url, key, body) {
+  if (window.Android && Android.http) {
+    return new Promise((res) => {
+      const id = ++httpSeq; httpWait[id] = res;
+      Android.http(id, url, key, body);
+      setTimeout(() => { if (httpWait[id]) { delete httpWait[id]; res({ status: -1, text: "timeout" }); } }, 70000);
+    });
+  }
+  return fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body })
+    .then(async (r) => ({ status: r.status, text: await r.text() }))
+    .catch((e) => ({ status: -1, text: String(e) }));
+}
+
+// tool lewat PC
+const toolWait = {}; let toolSeq = 0;
+function resolveAllTools(v) { for (const k of Object.keys(toolWait)) { const f = toolWait[k]; delete toolWait[k]; f(v); } }
+function wsTool(name, args) {
+  if (!S.connected) return Promise.resolve({ error: "Belum tersambung ke PC" });
+  return new Promise((res) => {
+    const id = ++toolSeq; toolWait[id] = res;
+    wsSend({ t: "tool", id, name, args });
+    setTimeout(() => { if (toolWait[id]) { delete toolWait[id]; res({ error: "Timeout menunggu PC" }); } }, 40000);
+  });
+}
+
+let history = [], aiGen = 0;
+
+function trimHistory() {
+  while (history.length > 30) history.shift();
+  while (history.length && (history[0].role !== "user" || history[0].parts.some((p) => p.functionResponse))) history.shift();
+}
+function dropOldSnapshots() {
+  let seen = false;
+  for (let i = history.length - 1; i >= 0; i--) {
+    for (const p of history[i].parts) {
+      if (p.functionResponse && p.functionResponse.name === "snapshot") {
+        if (seen) p.functionResponse.response = { result: { note: "snapshot lama dihapus" } };
+        seen = true;
+      }
+    }
+  }
+}
+function pushUserText(text) {
+  const last = history[history.length - 1];
+  if (last && last.role === "user") last.parts.push({ text });
+  else if (last && last.role === "model" && last.parts.some((p) => p.functionCall)) {
+    history.push({ role: "user", parts: last.parts.filter((p) => p.functionCall).map((p) => ({ functionResponse: { name: p.functionCall.name, response: { result: { error: "dibatalkan user" } } } })).concat([{ text }]) });
+  } else history.push({ role: "user", parts: [{ text }] });
+}
+
+async function gemini() {
+  const model = (cfg.model || "gemini-2.5-flash").trim();
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: SYS }] }, contents: history, tools: TOOLS, generationConfig: { temperature: 0.6 } });
+  const { status, text } = await httpPost(url, cfg.key, body);
+  let j = null; try { j = JSON.parse(text); } catch (e) {}
+  if (status !== 200) {
+    const msg = (j && j.error && j.error.message) || text || "";
+    if (status === 400 && /API key/i.test(msg)) throw new Error("API key Gemini salah");
+    if (status === 403) throw new Error("API key ditolak (403). Cek key dan akses Gemini API");
+    if (status === 429) throw new Error("Kuota Gemini habis, coba lagi sebentar");
+    if (status === 404) throw new Error("Model '" + model + "' tidak ditemukan. Ganti di pengaturan");
+    if (status === -1) throw new Error("Gak bisa nyambung ke Gemini (internet?)");
+    throw new Error("Gemini error " + status + ": " + msg.slice(0, 120));
+  }
+  const c = j && j.candidates && j.candidates[0];
+  if (!c || !c.content || !c.content.parts) throw new Error("Gemini tidak menjawab (" + ((c && c.finishReason) || (j && j.promptFeedback && j.promptFeedback.blockReason) || "kosong") + ")");
+  if (!c.content.role) c.content.role = "model";
+  return c.content;
+}
+
+async function runTool(name, args) {
+  setStatus(TOOL_LABEL[name] || "Bekerja…");
+  say(TOOL_LABEL[name] || "Bekerja…", 2500);
+  return wsTool(name, args);
+}
+
+async function askAI(text) {
+  if (!cfg.key) { say("Isi API key Gemini dulu (tahan layar)", 3000); return; }
+  const my = ++aiGen;
+  S.ai = true; wsSend({ t: "ai_start" });
+  if (window.Android && Android.stopSpeak) Android.stopSpeak();
+  pushUserText(text); trimHistory();
+  setStatus("Berpikir…");
+  try {
+    for (let step = 0; step < 14; step++) {
+      const content = await gemini();
+      if (my !== aiGen) return;
+      history.push(content);
+      const calls = content.parts.filter((p) => p.functionCall);
+      const spoken = content.parts.filter((p) => p.text && !p.thought).map((p) => p.text).join(" ").trim();
+      if (!calls.length) { finishAI(spoken || "Siap!"); return; }
+      const resp = [];
+      for (const c of calls) {
+        if (my !== aiGen) return;
+        const out = await runTool(c.functionCall.name, c.functionCall.args || {});
+        if (my !== aiGen) return;
+        resp.push({ functionResponse: { name: c.functionCall.name, response: { result: out } } });
+      }
+      history.push({ role: "user", parts: resp });
+      dropOldSnapshots();
+      setStatus("Berpikir…");
+    }
+    finishAI("Aku berhenti dulu ya, langkahnya kebanyakan.");
+  } catch (e) {
+    if (my !== aiGen) return;
+    const m = String((e && e.message) || e);
+    S.ai = false; setStatus(""); addMsg("a", "⚠ " + m); say(m, 4500);
+  }
+}
+
+function finishAI(text) {
+  S.ai = false; setStatus("");
+  addMsg("a", text); say(text, 5000); happy = 1;
+  if (cfg.tts !== false && window.Android && Android.speak) Android.speak(text);
+}
+
+function abortAI(reason) {
+  const was = S.ai;
+  aiGen++; S.ai = false; setStatus("");
+  resolveAllTools({ error: "dibatalkan" });
+  if (window.Android && Android.stopSpeak) Android.stopSpeak();
+  if (was || reason) say(reason || "Dibatalkan", 2000);
 }
 
 // ---------------- suara (dipanggil dari Android) ----------------
 window.onSpeech = function (text, final) {
   say("“" + text + "”", final ? 2500 : 99999);
-  if (final) {
-    if (S.connected) wsSend({ t: "cmd", text });
-    else say("Belum tersambung ke PC", 2500);
-  }
+  if (final) handleUserText(text);
 };
 window.onMicLevel = function (db) { S.mic = Math.max(S.mic, clamp((db + 2) / 12, 0, 1)); };
 window.onMicError = function (msg) { S.micOn = false; say(msg, 3500); };
 window.onMicInfo = function (msg) { say(msg, 3000); };
+window.onSpeakStart = function () { S.talking = true; };
+window.onSpeakEnd = function () { S.talking = false; };
 
 function stopMicNow() { S.micOn = false; if (window.Android) Android.stopMic(); }
 function toggleMic() {
@@ -327,10 +606,12 @@ function toggleMic() {
 
 function sleepNow() {
   if (S.micOn) stopMicNow();
+  abortAI("");
   S.sleeping = true; hideBubble();
   $("notif").style.opacity = 0;
+  applyScreen();
 }
-function wakeNow() { S.sleeping = false; happy = 1; say("Halo, aku bangun!", 1800); }
+function wakeNow() { S.sleeping = false; happy = 1; say("Halo, aku bangun!", 1800); applyScreen(); }
 
 // ---------------- tap ----------------
 let taps = 0, tapTimer = null, pressTimer = null, cfgOpen = false;
@@ -342,7 +623,7 @@ function handleTaps() {
   else if (n === 1) { happy = 1; pulse = 0.6; }
 }
 document.addEventListener("pointerdown", (e) => {
-  if (cfgOpen || e.target.closest("#cfg")) return;
+  if (cfgOpen || e.target.closest("#cfg,#scr,#scrOpen,#panel,#tabbtn")) return;
   pressTimer = setTimeout(() => { pressTimer = null; taps = 0; clearTimeout(tapTimer); openCfg(); }, 900);
 });
 document.addEventListener("pointerup", () => {
@@ -354,16 +635,23 @@ document.addEventListener("pointercancel", () => { clearTimeout(pressTimer); pre
 
 // ---------------- dialog pengaturan ----------------
 function openCfg() {
-  cfgOpen = true; $("fHost").value = cfg.host || ""; $("fPin").value = cfg.pin || ""; $("cfg").style.display = "flex";
+  cfgOpen = true;
+  $("fHost").value = cfg.host || ""; $("fPin").value = cfg.pin || "";
+  $("fKey").value = cfg.key || ""; $("fModel").value = cfg.model || "";
+  $("fTts").checked = cfg.tts !== false;
+  $("cfg").style.display = "flex";
 }
 function closeCfg() { cfgOpen = false; $("cfg").style.display = "none"; }
 $("bNo").onclick = closeCfg;
 $("bOk").onclick = () => {
-  cfg = { host: $("fHost").value.trim(), pin: $("fPin").value.trim() };
-  try { localStorage.setItem("cfg", JSON.stringify(cfg)); } catch (e) {}
-  closeCfg(); connect();
+  cfg = Object.assign(cfg, {
+    host: $("fHost").value.trim(), pin: $("fPin").value.trim(),
+    key: $("fKey").value.trim(), model: $("fModel").value.trim(), tts: $("fTts").checked,
+  });
+  saveCfg(); closeCfg(); connect();
 };
 
+applyScreen();
 connect();
 </script>
 </body>

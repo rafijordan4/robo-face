@@ -1,19 +1,25 @@
-"""Robo Face - server PC (Windows).
+"""Robo Face - server PC (Windows) v2.
 
 Jalankan:  python server.py
 - HP konek lewat WebSocket (port 8765) pakai PIN.
 - Ekstensi Chrome konek dari localhost (tanpa PIN).
+- Tool AI dari HP (Gemini) diteruskan ke ekstensi Chrome atau dijalankan di sini
+  (buka aplikasi dari shortcut, volume/media). Tidak ada akses shell / ketik bebas.
 """
 import asyncio
 import ctypes
+import difflib
+import hashlib
 import json
 import os
 import random
 import re
 import socket
+import struct
 import subprocess
 import time
 import urllib.parse
+import zlib
 from pathlib import Path
 
 from websockets.asyncio.server import serve
@@ -21,6 +27,7 @@ from websockets.asyncio.server import serve
 PORT = 8765
 CFG_FILE = Path(__file__).with_name("config.json")
 IS_WIN = os.name == "nt"
+
 
 # ---------- config / PIN ----------
 def load_cfg():
@@ -41,6 +48,11 @@ phones = set()
 ext = None
 state = {"media": False, "password": False}
 recent = {}
+halted = False          # true setelah tombol "Stop AI" ditekan di Chrome
+pending = {}            # id tool -> future (hasil dari ekstensi)
+tool_seq = 0
+screen_wants = {}       # ws HP -> lebar frame
+screen_dirty = False
 
 
 async def to_phones(msg):
@@ -64,16 +76,42 @@ def is_dup(key):
 
 
 # ---------- Windows helpers ----------
-user32 = ctypes.windll.user32 if IS_WIN else None
+user32 = gdi32 = None
 if IS_WIN:
+    from ctypes import c_int, c_uint, c_uint32, c_void_p
+    user32 = ctypes.windll.user32
+    gdi32 = ctypes.windll.gdi32
     try:
         user32.SetProcessDPIAware()
     except Exception:
         pass
+    user32.GetDC.restype = c_void_p
+    user32.GetDC.argtypes = [c_void_p]
+    user32.ReleaseDC.argtypes = [c_void_p, c_void_p]
+    gdi32.CreateCompatibleDC.restype = c_void_p
+    gdi32.CreateCompatibleDC.argtypes = [c_void_p]
+    gdi32.CreateCompatibleBitmap.restype = c_void_p
+    gdi32.CreateCompatibleBitmap.argtypes = [c_void_p, c_int, c_int]
+    gdi32.SelectObject.restype = c_void_p
+    gdi32.SelectObject.argtypes = [c_void_p, c_void_p]
+    gdi32.DeleteObject.argtypes = [c_void_p]
+    gdi32.DeleteDC.argtypes = [c_void_p]
+    gdi32.SetStretchBltMode.argtypes = [c_void_p, c_int]
+    gdi32.StretchBlt.argtypes = [c_void_p, c_int, c_int, c_int, c_int, c_void_p,
+                                 c_int, c_int, c_int, c_int, c_uint32]
+    gdi32.GetDIBits.argtypes = [c_void_p, c_void_p, c_uint, c_uint, c_void_p, c_void_p, c_uint]
 
 
 class POINT(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_int32), ("biHeight", ctypes.c_int32),
+                ("biPlanes", ctypes.c_uint16), ("biBitCount", ctypes.c_uint16),
+                ("biCompression", ctypes.c_uint32), ("biSizeImage", ctypes.c_uint32),
+                ("biXPelsPerMeter", ctypes.c_int32), ("biYPelsPerMeter", ctypes.c_int32),
+                ("biClrUsed", ctypes.c_uint32), ("biClrImportant", ctypes.c_uint32)]
 
 
 def mouse_pos():
@@ -118,7 +156,193 @@ def os_open(url):
         webbrowser.open(url)
 
 
-# ---------- parser perintah suara ----------
+# ---------- layar PC -> HP (tanpa library tambahan) ----------
+def bgra_to_png(bgra, w, h):
+    stride = w * 4
+    raw = bytearray()
+    rgb = bytearray(w * 3)
+    for y in range(h):
+        px = bgra[y * stride:(y + 1) * stride]
+        rgb[0::3] = px[2::4]
+        rgb[1::3] = px[1::4]
+        rgb[2::3] = px[0::4]
+        raw.append(0)
+        raw += rgb
+
+    def chunk(tag, data):
+        c = struct.pack(">I", len(data)) + tag + data
+        return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 1))
+            + chunk(b"IEND", b""))
+
+
+def grab_screen(out_w):
+    """Return (bgra bytearray, w, h) layar utama yang sudah diperkecil, atau None."""
+    if not IS_WIN:
+        return None
+    sw = user32.GetSystemMetrics(0)
+    sh = user32.GetSystemMetrics(1)
+    out_w = max(160, min(out_w, sw))
+    out_h = max(90, round(sh * out_w / sw))
+    hdc = user32.GetDC(None)
+    mdc = gdi32.CreateCompatibleDC(hdc)
+    bmp = gdi32.CreateCompatibleBitmap(hdc, out_w, out_h)
+    old = gdi32.SelectObject(mdc, bmp)
+    try:
+        gdi32.SetStretchBltMode(mdc, 4)  # HALFTONE
+        if not gdi32.StretchBlt(mdc, 0, 0, out_w, out_h, hdc, 0, 0, sw, sh, 0x00CC0020):
+            return None
+        bmi = BITMAPINFOHEADER(40, out_w, -out_h, 1, 32, 0, 0, 0, 0, 0, 0)
+        buf = (ctypes.c_ubyte * (out_w * out_h * 4))()
+        if not gdi32.GetDIBits(mdc, bmp, 0, out_h, buf, ctypes.byref(bmi), 0):
+            return None
+        return bytearray(buf), out_w, out_h
+    finally:
+        gdi32.SelectObject(mdc, old)
+        gdi32.DeleteObject(bmp)
+        gdi32.DeleteDC(mdc)
+        user32.ReleaseDC(None, hdc)
+
+
+def capture_png(width):
+    g = grab_screen(width)
+    if g is None:
+        return None
+    data, w, h = g
+    mx, my = mouse_pos()          # titik merah = posisi mouse asli
+    cx, cy = int(mx * w), int(my * h)
+    for yy in range(max(0, cy - 4), min(h, cy + 5)):
+        for xx in range(max(0, cx - 4), min(w, cx + 5)):
+            o = (yy * w + xx) * 4
+            data[o:o + 3] = b"\x30\x30\xff"  # BGR merah
+    return bgra_to_png(data, w, h)
+
+
+async def screen_loop():
+    global screen_dirty
+    last = None
+    warned = False
+    while True:
+        if not screen_wants:
+            last = None
+            await asyncio.sleep(0.3)
+            continue
+        t0 = time.time()
+        png = await asyncio.to_thread(capture_png, max(screen_wants.values()))
+        if png is None:
+            if not warned:
+                print("[layar] gagal mengambil layar")
+                warned = True
+            await asyncio.sleep(2)
+            continue
+        h = hashlib.md5(png).digest()
+        if h != last or screen_dirty:
+            last, screen_dirty = h, False
+            for p in list(screen_wants):
+                try:
+                    await p.send(png)
+                except Exception:
+                    screen_wants.pop(p, None)
+        await asyncio.sleep(max(0.05, 0.45 - (time.time() - t0)))
+
+
+# ---------- buka aplikasi (hanya dari shortcut Start Menu / Desktop) ----------
+APP_ROOTS = [
+    os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"),
+    os.path.expandvars(r"%AppData%\Microsoft\Windows\Start Menu\Programs"),
+    os.path.expandvars(r"%USERPROFILE%\Desktop"),
+    os.path.expandvars(r"%PUBLIC%\Desktop"),
+]
+BLOCK_APPS = re.compile(
+    r"(cmd|command prompt|powershell|terminal|regedit|registry|task ?manager|msconfig|"
+    r"services|computer management|group policy|diskpart|\bwsl\b|bash|python|\bidle\b|"
+    r"\bpip\b|script|installer|setup|uninstall|hapus)", re.I)
+
+
+def norm_name(s):
+    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+
+
+def index_apps():
+    apps = {}
+    for root in APP_ROOTS:
+        if not root or not os.path.isdir(root):
+            continue
+        for dp, _, files in os.walk(root):
+            for f in files:
+                stem, ext_ = os.path.splitext(f)
+                if ext_.lower() not in (".lnk", ".url"):
+                    continue
+                if BLOCK_APPS.search(stem):
+                    continue
+                apps.setdefault(stem.lower(), (stem, os.path.join(dp, f)))
+    return list(apps.values())
+
+
+def pick_apps(query, apps):
+    q = norm_name(query)
+    if not q:
+        return []
+    scored = []
+    for stem, path in apps:
+        n = norm_name(stem)
+        if n == q:
+            s = 0
+        elif n.startswith(q):
+            s = 1
+        elif q in n.split():
+            s = 2
+        elif q in n:
+            s = 3
+        elif difflib.SequenceMatcher(None, q, n).ratio() > 0.78:
+            s = 4
+        else:
+            continue
+        scored.append((s, len(stem), stem, path))
+    scored.sort()
+    return [(s[2], s[3]) for s in scored]
+
+
+def launch(path):
+    os.startfile(path)  # noqa: hanya shortcut hasil index_apps
+
+
+def tool_open_app(name):
+    if BLOCK_APPS.search(name or ""):
+        return {"error": "Aplikasi itu diblokir demi keamanan"}
+    hits = pick_apps(name, index_apps())
+    if not hits:
+        return {"error": f"Gak nemu aplikasi '{name}' di Start Menu / Desktop"}
+    stem, path = hits[0]
+    try:
+        launch(path)
+    except Exception as e:
+        return {"error": f"Gagal membuka {stem}: {e}"}
+    out = {"ok": True, "opened": stem}
+    if len(hits) > 1:
+        out["mirip"] = [h[0] for h in hits[1:4]]
+    return out
+
+
+SYSTEM_KEYS = {
+    "volume_up": ("vol_up", 5), "volume_down": ("vol_down", 5), "mute": ("mute", 1),
+    "play_pause": ("playpause", 1), "next_track": ("next", 1), "prev_track": ("prev", 1),
+}
+
+
+def tool_system(action):
+    if action not in SYSTEM_KEYS:
+        return {"error": "Aksi sistem tidak dikenal"}
+    key, reps = SYSTEM_KEYS[action]
+    for _ in range(reps):
+        press(key)
+    return {"ok": True, "action": action}
+
+
+# ---------- parser perintah suara (mode tanpa Gemini) ----------
 SITES = {
     "youtube": "https://www.youtube.com", "google": "https://www.google.com",
     "gmail": "https://mail.google.com", "github": "https://github.com",
@@ -227,7 +451,6 @@ async def run_command(text):
     if action in ("new_tab", "close_tab", "next_tab", "prev_tab", "reload", "back", "open_url"):
         if await ext_send(action, arg):
             return {"t": "cmd_result", "ok": True, "text": reply}
-        # fallback tanpa ekstensi
         if action == "open_url":
             await asyncio.to_thread(os_open, arg)
         elif action == "new_tab":
@@ -254,8 +477,57 @@ async def run_command(text):
     return {"t": "cmd_result", "ok": False, "text": "Belum didukung"}
 
 
+# ---------- tool AI (dari Gemini di HP) ----------
+EXT_TOOLS = {"open_url", "snapshot", "click", "type_text", "scroll", "media",
+             "browser_nav", "list_tabs", "focus_tab"}
+
+
+async def dispatch_tool(name, args):
+    global tool_seq
+    if halted:
+        return {"error": "Dihentikan user lewat tombol Stop AI. Tanya user dulu sebelum lanjut."}
+    try:
+        if name == "open_app":
+            return await asyncio.to_thread(tool_open_app, str(args.get("name", "")))
+        if name == "system":
+            return tool_system(args.get("action"))
+        if name == "web_search":
+            q = urllib.parse.quote_plus(str(args.get("query", ""))[:200])
+            if args.get("site") == "youtube":
+                url = f"https://www.youtube.com/results?search_query={q}"
+            else:
+                url = f"https://www.google.com/search?q={q}"
+            return await dispatch_tool("open_url", {"url": url, "new_tab": bool(args.get("new_tab"))})
+        if name in EXT_TOOLS:
+            if ext is None:
+                return {"error": "Ekstensi Chrome belum tersambung. Minta user buka Chrome dan cek ekstensi Robo Face Bridge."}
+            tool_seq += 1
+            sid = str(tool_seq)
+            fut = asyncio.get_running_loop().create_future()
+            pending[sid] = fut
+            try:
+                await ext.send(json.dumps({"t": "ext_tool", "id": sid, "name": name, "args": args}))
+                return await asyncio.wait_for(fut, 30)
+            except asyncio.TimeoutError:
+                return {"error": "Timeout: Chrome tidak merespon"}
+            finally:
+                pending.pop(sid, None)
+    except Exception as e:
+        return {"error": str(e)}
+    return {"error": "Tool tidak dikenal: " + str(name)}
+
+
+async def phone_tool(ws, m):
+    result = await dispatch_tool(m.get("name"), m.get("args") or {})
+    try:
+        await ws.send(json.dumps({"t": "tool_result", "id": m.get("id"), "result": result}))
+    except Exception:
+        pass
+
+
 # ---------- handler koneksi ----------
 async def from_ext(m):
+    global halted
     t = m.get("t")
     if t == "media":
         state["media"] = bool(m.get("playing"))
@@ -265,12 +537,36 @@ async def from_ext(m):
         await to_phones({"t": "password", "active": state["password"]})
     elif t == "notif":
         await push_notif(m.get("app", ""), m.get("title", ""), m.get("body", ""), m.get("image") or "")
+    elif t == "tool_result":
+        fut = pending.get(str(m.get("id")))
+        if fut and not fut.done():
+            fut.set_result(m.get("result"))
+    elif t == "ai_stop":
+        halted = True
+        for f in list(pending.values()):
+            if not f.done():
+                f.set_result({"error": "Dihentikan user"})
+        await to_phones({"t": "ai_stop"})
 
 
-async def from_phone(m):
-    if m.get("t") == "cmd":
-        res = await run_command(str(m.get("text", "")))
-        await to_phones(res)
+async def from_phone(ws, m):
+    global halted, screen_dirty
+    t = m.get("t")
+    if t == "cmd":
+        await to_phones(await run_command(str(m.get("text", ""))))
+    elif t == "tool":
+        asyncio.create_task(phone_tool(ws, m))
+    elif t == "ai_start":
+        halted = False
+    elif t == "screen":
+        if m.get("on"):
+            try:
+                screen_wants[ws] = max(160, min(1280, int(m.get("w", 480))))
+            except Exception:
+                screen_wants[ws] = 480
+            screen_dirty = True
+        else:
+            screen_wants.pop(ws, None)
 
 
 async def push_notif(app, title, body, image=""):
@@ -311,11 +607,12 @@ async def handler(ws):
             if role == "ext":
                 await from_ext(m)
             else:
-                await from_phone(m)
+                await from_phone(ws, m)
     except Exception:
         pass
     finally:
         phones.discard(ws)
+        screen_wants.pop(ws, None)
         if ext is ws:
             ext = None
             state["media"] = False
@@ -400,13 +697,14 @@ def local_ips():
 
 async def main():
     print("=" * 44)
-    print(" ROBO FACE SERVER")
+    print(" ROBO FACE SERVER v2")
     print(" IP PC  :", ", ".join(local_ips()) or "(tidak terdeteksi)")
     print(" Port   :", PORT)
     print(" PIN    :", cfg["pin"])
     print("=" * 44)
     asyncio.create_task(mouse_loop())
     asyncio.create_task(notif_loop())
+    asyncio.create_task(screen_loop())
     async with serve(handler, "0.0.0.0", PORT, max_size=8 * 1024 * 1024):
         await asyncio.Future()
 
