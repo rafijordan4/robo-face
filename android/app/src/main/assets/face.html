@@ -81,11 +81,11 @@ input{-webkit-user-select:text;user-select:text}
 
 <div id="dock">
   <div id="scr">
-    <div class="bar"><b>Layar PC <span class="lg"><i style="color:#ff3030">&#9679;</i>PC <i style="color:#00e5ff">&#9679;</i>HP <i style="color:#ffd60a">&#9679;</i>AI</span></b><button id="sFps" title="Kecepatan">30fps</button><button id="sPadT" title="Mouse HP">&#128433;</button><button id="sMin" title="Kecilkan">&minus;</button><button id="sPlus" title="Besarkan">+</button><button id="sX" title="Tutup">&times;</button></div>
+    <div class="bar"><b>Layar PC <span class="lg"><i style="color:#ff3030">&#9679;</i>PC <i style="color:#00e5ff">&#9679;</i>HP <i style="color:#ffd60a">&#9679;</i>AI</span></b><button id="sFps" title="Kecepatan">30fps</button><button id="sAud" title="Suara PC">&#128263;</button><button id="sPadT" title="Mouse HP">&#128433;</button><button id="sMin" title="Kecilkan">&minus;</button><button id="sPlus" title="Besarkan">+</button><button id="sX" title="Tutup">&times;</button></div>
     <canvas id="scrCv" width="640" height="360"></canvas>
   </div>
   <div id="pad">
-    <div class="bar"><b>Mouse HP</b><button id="padScr" title="Tampilkan layar PC">&#128421;</button><button id="padX" title="Tutup">&times;</button></div>
+    <div class="bar"><b>Mouse HP</b><button id="padAud" title="Suara PC">&#128263;</button><button id="padScr" title="Tampilkan layar PC">&#128421;</button><button id="padX" title="Tutup">&times;</button></div>
     <div id="padSurf">geser = gerak<br>ketuk = klik kiri<br>2 jari = scroll<br>ketuk 2 jari = klik kanan</div>
     <div id="padBtns"><button id="bL">Kiri</button><button id="bR">Kanan</button><button id="bU">&#9650;</button><button id="bD">&#9660;</button></div>
   </div>
@@ -358,13 +358,14 @@ function applyScreen() {
   $("padScr").style.display = scrVisible ? "none" : "inline-block";
   $("scr").style.width = "min(" + SIZES[scrSize].vw + "vw, calc(70vh * 1.7778))";
   $("sFps").textContent = fps + "fps";
-  wsSend({ t: "screen", on: showScr, w: SIZES[scrSize].w, fps });
+  wsSend({ t: "screen", on: showScr, w: SIZES[scrSize].w, fps, ack: true });
   cfg.scrSize = scrSize; cfg.scrVisible = scrVisible; cfg.padVisible = padVisible; cfg.fps = fps; saveCfg();
 }
 $("sPlus").onclick = () => { scrSize = Math.min(SIZES.length - 1, scrSize + 1); applyScreen(); };
 $("sMin").onclick = () => { scrSize = Math.max(0, scrSize - 1); applyScreen(); };
 $("sX").onclick = () => { scrVisible = false; applyScreen(); };
 $("sFps").onclick = () => { fps = fps === 30 ? 60 : 30; applyScreen(); };
+$("sAud").onclick = $("padAud").onclick = () => setAudio(!audOn);
 $("sPadT").onclick = () => { padVisible = !padVisible; applyScreen(); };
 $("padX").onclick = () => { padVisible = false; applyScreen(); };
 $("padScr").onclick = () => { scrVisible = true; applyScreen(); };
@@ -373,7 +374,45 @@ $("oPad").onclick = () => { padVisible = true; applyScreen(); };
 
 // Frame terbaru saja: decode di thread terpisah (createImageBitmap), gambar ke canvas.
 let pendingBlob = null, decoding = false;
-function showFrame(blob) { pendingBlob = blob; if (!decoding) pumpFrames(); }
+function showFrame(blob) { pendingBlob = blob; if (!decoding) pumpFrames(); wsSend({ t: "fa" }); }  // ack: frame lama yg belum digambar otomatis dibuang
+
+// ---- suara PC -> HP (PCM16 stereo 32 kHz dari server) ----
+let audOn = false, audReady = false, aCtx = null, aGain = null, aNext = 0, aStat = { chunks: 0, dropped: 0 };
+window.__audioStat = aStat;
+function paintAud() {
+  const ic = !audOn ? "\u{1F507}" : audReady ? "\u{1F50A}" : "\u23F3";
+  $("sAud").textContent = ic; $("padAud").textContent = ic;
+  $("sAud").title = $("padAud").title = !audOn ? "Suara PC mati" : audReady ? "Suara PC nyala" : "Buka http://localhost:8765/audio di Chrome PC & bagikan suara";
+}
+function setAudio(on) {
+  audOn = on;
+  if (on) {
+    try {
+      if (!aCtx) { aCtx = new (window.AudioContext || window.webkitAudioContext)(); aGain = aCtx.createGain(); aGain.connect(aCtx.destination); }
+      aCtx.resume(); aNext = 0;
+    } catch (e) { audOn = false; say("Audio HP error", 2000); }
+  }
+  if (on && !audReady) say("Buka halaman /audio di Chrome PC", 3500);
+  wsSend({ t: "audio", on: audOn }); paintAud();
+}
+function playAudio(buf) {
+  if (!audOn || !aCtx || buf.byteLength < 8) return;
+  const dv = new DataView(buf), ch = dv.getUint8(1), sr = dv.getUint16(2, true) * 100;
+  const n = (buf.byteLength - 4) >> 1 >> (ch - 1);
+  if (n <= 0) return;
+  const pcm = new Int16Array(buf.slice(4, 4 + n * ch * 2));
+  const ab = aCtx.createBuffer(ch, n, sr);
+  for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) d[i] = pcm[i * ch + c] / 32768; }
+  const now = aCtx.currentTime;
+  if (aNext < now + 0.02) aNext = now + 0.15;            // jitter buffer 150 ms
+  else if (aNext > now + 0.5) { aStat.dropped++; return; } // terlalu tertinggal: buang supaya tidak lag
+  const src = aCtx.createBufferSource(); src.buffer = ab; src.connect(aGain);
+  src.start(aNext); aNext += ab.duration; aStat.chunks++;
+}
+setInterval(() => {  // kecilkan suara PC saat robot bicara / mic aktif
+  if (aGain) aGain.gain.value = (S.talking || S.micOn) ? 0.25 : 1;
+}, 100);
+paintAud();
 async function pumpFrames() {
   decoding = true;
   while (pendingBlob) {
@@ -460,16 +499,20 @@ function connect() {
   S.connected = false;
   if (!cfg.host) { openCfg(); return; }
   try { ws = new WebSocket("ws://" + cfg.host + ":8765"); } catch (e) { setTimeout(() => { if (g === gen) connect(); }, 2500); return; }
-  ws.binaryType = "blob";
+  ws.binaryType = "arraybuffer";
   ws.onopen = () => wsSend({ t: "hello", role: "phone", pin: cfg.pin || "" });
   ws.onmessage = (ev) => {
-    if (typeof ev.data !== "string") { showFrame(ev.data); return; }
+    if (typeof ev.data !== "string") {
+      const u = new Uint8Array(ev.data, 0, 1);
+      if (u[0] === 0xA5) playAudio(ev.data); else showFrame(new Blob([ev.data], { type: "image/jpeg" }));
+      return;
+    }
     let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     handle(m);
   };
   ws.onclose = () => {
     if (g !== gen) return;
-    S.connected = false; S.headset = false; S.pwd = false;
+    S.connected = false; S.headset = false; S.pwd = false; audReady = false; paintAud();
     resolveAllTools({ error: "Koneksi ke PC putus" });
     if (authFailed) return;
     setTimeout(() => { if (g === gen) connect(); }, 2000);
@@ -478,7 +521,8 @@ function connect() {
 
 function handle(m) {
   switch (m.t) {
-    case "hello_ok": S.connected = true; say("Tersambung ke PC!", 1800); happy = 1; applyScreen(); break;
+    case "hello_ok": S.connected = true; say("Tersambung ke PC!", 1800); happy = 1; applyScreen(); if (audOn) wsSend({ t: "audio", on: true }); break;
+    case "audio_state": audReady = !!m.ready; paintAud(); break;
     case "auth_fail": authFailed = true; say("PIN salah", 3000); openCfg("PIN salah. PIN ada di jendela server.py (4 angka), bukan 8765."); break;
     case "mouse": tx = m.x; ty = m.y; break;
     case "media": S.headset = !!m.playing; break;
@@ -725,7 +769,7 @@ function toggleMic() {
 function sleepNow() {
   if (S.micOn) stopMicNow();
   abortAI("");
-  S.sleeping = true; hideBubble();
+  S.sleeping = true; hideBubble(); if (audOn) setAudio(false);
   $("notif").style.opacity = 0;
   applyScreen();
 }
