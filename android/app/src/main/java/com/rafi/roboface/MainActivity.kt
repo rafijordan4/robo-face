@@ -49,6 +49,7 @@ class MainActivity : Activity() {
         web.loadUrl("file:///android_asset/face.html")
         hideSystemUi()
 
+        muteBeep(false)
         initTts()
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -183,10 +184,12 @@ class MainActivity : Activity() {
     }
 
     // suara "beep" recognizer dimatikan selama mic aktif (restart tiap beberapa detik)
+    // Versi lama membisukan stream sistem dan bisa tersangkut (semua app jadi tanpa suara).
+    // Sekarang tidak pernah membisukan; hanya memulihkan kalau sebelumnya tersangkut.
     private fun muteBeep(mute: Boolean) {
-        val dir = if (mute) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
-        for (s in intArrayOf(AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM)) {
-            try { audio?.adjustStreamVolume(s, dir, 0) } catch (e: Exception) { }
+        if (mute) return
+        for (s in intArrayOf(AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM, AudioManager.STREAM_MUSIC)) {
+            try { audio?.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
         }
     }
 
@@ -254,6 +257,11 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        muteBeep(false)
     }
 
     override fun onPause() {
