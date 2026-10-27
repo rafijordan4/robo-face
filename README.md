@@ -30,6 +30,13 @@ Tahan layar 1 detik: isi IP PC, PIN, API key Gemini (aistudio.google.com/apikey)
 - Panah di kanan: panel ketik. Kotak kiri bawah: layar PC (tombol - dan + untuk ukuran, x untuk tutup).
 - Tanpa API key: mode perintah biasa ("buka tab baru", "cari lofi di youtube", ...).
 
+## Layar PC dan mouse HP
+- Layar PC dikirim sebagai JPEG (GDI+ bawaan Windows). Tombol `30fps`/`60fps` di bar layar. Console server mencetak fps asli tiap 5 detik.
+- Mouse HP (kotak di samping layar): geser = gerak, ketuk = klik kiri, 2 jari geser = scroll, ketuk 2 jari = klik kanan,
+  tombol Kiri/Kanan bisa ditahan (tahan Kiri + geser = seret), tombol atas/bawah = scroll.
+- Windows cuma punya satu kursor asli, jadi mouse PC dan mouse HP berbagi kursor yang sama. Penanda di layar:
+  merah = digerakkan dari PC, cyan = dari HP, kuning = kursor AI (di dalam Chrome).
+
 ## Aturan keamanan AI
 - Kursor kuning hanya overlay di halaman Chrome, tidak menggerakkan mouse Windows.
 - Tidak mengisi password, OTP, PIN, kartu. Tidak membuka link download/skrip.
